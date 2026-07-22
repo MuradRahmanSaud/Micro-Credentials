@@ -1,0 +1,8 @@
+{
+  "name": "Micro-Credentials - V8",
+  "description": "A compact dashboard displaying real-time employee data from a Google Sheet.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
