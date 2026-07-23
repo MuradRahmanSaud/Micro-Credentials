@@ -449,6 +449,7 @@ export default function App() {
   };
 
   const [isSyncing, setIsSyncing] = useState(false);
+  const courseTableRef = useRef<any>(null);
 
   const handleSyncAll = async () => {
     setIsSyncing(true);
@@ -789,6 +790,7 @@ export default function App() {
                           ) : mcSubTab === "course" ? (
                             <div className="flex-1 overflow-hidden relative">
                               <Table 
+                                ref={courseTableRef}
                                 data={enrichedCourseData}
                                 headers={courseTableHeaders}
                                 formHeaders={courseHeaders.filter(h => !["Proposed By", "Developed By", "Reviewed By", "Approved By", "Published By"].includes(h))}
@@ -801,17 +803,26 @@ export default function App() {
                                 title="Course List"
                                 renderActions={renderCourseActions}
                                 employees={data}
-                                 extraFormProps={{ 
+                                extraFormProps={{ 
                                   allBatches: mcBatchData, 
                                   onSaveBatch: handleMCBatchSave,
                                   allDocuments: documentsData,
                                   onSaveDocument: handleDocumentSave,
-                                  workflowData: workflowData
+                                  workflowData: workflowData,
+                                  onExpand: (course: any) => {
+                                    setSelectedCourse(course);
+                                    setIsCourseDetailsOpen(true);
+                                  }
                                 }}
                               />
                               <MCCourseDetails 
                                 isOpen={isCourseDetailsOpen}
-                                onClose={() => setIsCourseDetailsOpen(false)}
+                                onClose={() => {
+                                  setIsCourseDetailsOpen(false);
+                                  if (courseTableRef.current) {
+                                    courseTableRef.current.handleOpenEdit(selectedCourse);
+                                  }
+                                }}
                                 data={selectedCourse}
                                 onSave={handleCourseSave}
                                 employees={data}

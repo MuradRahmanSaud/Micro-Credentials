@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Search, Pencil, Trash2, RefreshCw, Plus, Filter, CheckCircle2, AlertCircle, Download, Type, RotateCcw, User } from "lucide-react";
 import { cn, formatToMmmDdYyyy, isBatchRunning } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -46,7 +46,7 @@ interface TableProps {
   isActiveRow?: (row: any) => boolean;
 }
 
-export default function Table({ 
+export default forwardRef(function Table({ 
   data, 
   headers, 
   formHeaders,
@@ -72,7 +72,7 @@ export default function Table({
   customHeaderButton,
   renderCell,
   isActiveRow
-}: TableProps) {
+}: TableProps, ref) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(19);
@@ -96,6 +96,11 @@ export default function Table({
 
   // Modal & Notification State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  useImperativeHandle(ref, () => ({
+    setIsModalOpen,
+    handleOpenEdit
+  }));
   const [editingRow, setEditingRow] = useState<any>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [rowToDelete, setRowToDelete] = useState<any>(null);
@@ -996,4 +1001,4 @@ export default function Table({
       </AnimatePresence>
     </div>
   );
-}
+});

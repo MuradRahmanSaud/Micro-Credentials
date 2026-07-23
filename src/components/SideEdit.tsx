@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { X, Save, Loader2, Camera, Image as ImageIcon, Workflow, Info, Calculator, GripVertical, Briefcase } from "lucide-react";
+import { X, Save, Loader2, Camera, Image as ImageIcon, Workflow, Info, Calculator, GripVertical, Briefcase, Layers, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import EmployeeMultiSelect from "./EmployeeMultiSelect";
 import SearchableSingleSelect from "./SearchableSingleSelect";
-import { resolveNamesOrIdsToIds, resolveIdsToNames, compressImage, getDbOverridesHeaders, cn, parseWorkflowAndStages, serializeWorkflowAndStages, getStageAssignment, parseWorkflowTitle } from "../lib/utils";
+import { resolveNamesOrIdsToIds, resolveIdsToNames, compressImage, getDbOverridesHeaders, cn, parseWorkflowAndStages, serializeWorkflowAndStages, getStageAssignment, parseWorkflowTitle, formatToMmmDdYyyy, isBatchRunning } from "../lib/utils";
 import axios from "axios";
 import { FOLDER_LOCATIONS } from "../FolderLocation";
 
@@ -19,18 +19,228 @@ export interface SideEditProps {
   saveButtonLabel?: string;
   closeOnSave?: boolean;
   isNew?: boolean;
+  allBatches?: any[];
+  onSaveBatch?: (formData: any, editingRow: any | null) => Promise<void>;
 }
 
-export default function SideEdit({ isOpen, onClose, onSave, initialData, headers, title, employees = [], workflowData = [], saveButtonLabel = "Save", closeOnSave = true, isNew = false }: SideEditProps) {
+export function FloatingInput({
+  label,
+  value,
+  onChange,
+  type = "text",
+  prefix,
+  placeholder = " ",
+  className = "",
+  ...props
+}: {
+  label: string;
+  value: any;
+  onChange: (e: any) => void;
+  type?: string;
+  prefix?: string;
+  placeholder?: string;
+  className?: string;
+  [key: string]: any;
+}) {
+  const [isFocused, setIsFocused] = useState(false);
+  const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+  const isFloating = isFocused || hasValue || type === "date";
+
+  return (
+    <div className={`relative flex items-center ${className}`}>
+      {prefix && (
+        <span className="absolute left-3 text-xs font-semibold text-gray-500 pointer-events-none z-10">
+          {prefix}
+        </span>
+      )}
+      <input
+        type={type}
+        value={value === undefined || value === "—" ? "" : value}
+        onChange={onChange}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        placeholder={placeholder}
+        className={cn(
+          "peer w-full pt-4 pb-1.5 text-xs border border-gray-200 rounded-lg focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none bg-white transition-all text-gray-800 font-medium",
+          prefix ? "pl-7 pr-3" : "px-3"
+        )}
+        {...props}
+      />
+      <label
+        className={cn(
+          "absolute transition-all duration-200 pointer-events-none uppercase tracking-wider font-bold select-none",
+          prefix ? "left-7" : "left-3",
+          isFloating
+            ? "top-1 text-[8.5px] text-teal-600 bg-white px-1 ml-[-4px] font-extrabold z-10"
+            : "top-3 text-xs text-gray-400 font-normal"
+        )}
+      >
+        {label}
+      </label>
+    </div>
+  );
+}
+
+export default function SideEdit({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  initialData, 
+  headers, 
+  title, 
+  employees = [], 
+  workflowData = [], 
+  saveButtonLabel = "Save", 
+  closeOnSave = true, 
+  isNew = false,
+  allBatches,
+  onSaveBatch
+}: SideEditProps) {
   const [formData, setFormData] = useState<any>(initialData || {});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"info" | "workflow" | "accounting">("info");
+  const [activeTab, setActiveTab] = useState<"info" | "batches" | "workflow" | "accounting">("info");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [localStages, setLocalStages] = useState<any[]>([]);
   const [draggedStageIndex, setDraggedStageIndex] = useState<number | null>(null);
+
+  const [showAddBatch, setShowAddBatch] = useState(false);
+  const [editingBatch, setEditingBatch] = useState<any | null>(null);
+  const [newBatch, setNewBatch] = useState({
+    "Batch Number": "",
+    "Start Date": "",
+    "End Date": "",
+    "Student": "",
+    "Instractor": ""
+  });
+  const [isSavingBatch, setIsSavingBatch] = useState(false);
+  const [localCreatedBatches, setLocalCreatedBatches] = useState<any[]>([]);
+
+  const currentCourseCode = formData["Course Code"] || "";
+  const currentCourseTitle = formData["Course Title"] || "";
+  
+  const courseBatches = useMemo(() => {
+    if (!currentCourseCode) return [];
+    const fromProps = allBatches ? allBatches.filter(b => 
+      (b['Course Code'] && String(b['Course Code']).trim().toLowerCase() === String(currentCourseCode).trim().toLowerCase()) ||
+      (b['Course Name'] && String(b['Course Name']).trim().toLowerCase() === String(currentCourseTitle).trim().toLowerCase())
+    ) : [];
+    
+    const merged = [...fromProps];
+    localCreatedBatches.forEach(lb => {
+      if (!merged.some(mb => mb["Batch Number"] === lb["Batch Number"])) {
+        merged.push(lb);
+      }
+    });
+
+    merged.sort((a, b) => {
+      const getNum = (val: string) => {
+        const m = String(val || '').match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : 0;
+      };
+      return getNum(a["Batch Number"]) - getNum(b["Batch Number"]);
+    });
+
+    return merged;
+  }, [allBatches, currentCourseCode, currentCourseTitle, localCreatedBatches]);
+
+  const getNextBatchNumber = () => {
+    const maxBatchNum = courseBatches.reduce((max, b) => {
+      const match = String(b['Batch Number'] || '').match(/Batch-(\d+)/) || String(b['Batch Number'] || '').match(/(\d+)/);
+      const num = match ? parseInt(match[1], 10) : 0;
+      return Math.max(max, num);
+    }, 0);
+    return `Batch-${String(maxBatchNum + 1).padStart(2, '0')}`;
+  };
+
+  const handleOpenAddBatch = () => {
+    const nextNum = getNextBatchNumber();
+    setNewBatch({
+      "Batch Number": nextNum,
+      "Start Date": "",
+      "End Date": "",
+      "Student": "",
+      "Instractor": ""
+    });
+    setEditingBatch(null);
+    setShowAddBatch(true);
+  };
+
+  const handleOpenEditBatch = (batch: any) => {
+    const formatDateForInput = (val: any) => {
+      if (!val) return "";
+      // Handle timestamp / standard date string to get YYYY-MM-DD
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return "";
+      return d.toISOString().split('T')[0];
+    };
+
+    setNewBatch({
+      "Batch Number": batch["Batch Number"] || "",
+      "Start Date": formatDateForInput(batch["Start Date"]),
+      "End Date": formatDateForInput(batch["End Date"]),
+      "Student": batch["Student"] || "",
+      "Instractor": batch["Instractor"] || batch["Instructor"] || ""
+    });
+    setEditingBatch(batch);
+    setShowAddBatch(true);
+  };
+
+  const handleSaveBatchClick = async () => {
+    if (!newBatch["Batch Number"]) {
+      alert("Batch Number is required.");
+      return;
+    }
+    if (!newBatch["Start Date"] || !newBatch["End Date"]) {
+      alert("Start and End dates are required.");
+      return;
+    }
+    
+    setIsSavingBatch(true);
+    try {
+      const batchToSave = {
+        ...newBatch,
+        "Course Code": currentCourseCode,
+        "Course Name": currentCourseTitle
+      };
+      
+      if (onSaveBatch) {
+        await onSaveBatch(batchToSave, editingBatch);
+      } else {
+        const payload = {
+          action: editingBatch ? "UPDATE" : "ADD",
+          gid: "1111164355", // default MC Batch GID
+          data: batchToSave
+        };
+        await axios.post("/api/proxy", payload);
+      }
+      
+      if (editingBatch) {
+        setLocalCreatedBatches(prev => prev.map(lb => 
+          lb["Batch Number"] === editingBatch["Batch Number"] ? batchToSave : lb
+        ));
+      } else {
+        setLocalCreatedBatches(prev => [...prev, batchToSave]);
+      }
+      
+      setShowAddBatch(false);
+      setEditingBatch(null);
+      setNewBatch({
+        "Batch Number": "",
+        "Start Date": "",
+        "End Date": "",
+        "Student": "",
+        "Instractor": ""
+      });
+    } catch (err: any) {
+      console.error("Failed to save batch:", err);
+      alert("Error saving batch: " + (err.message || "Unknown error"));
+    } finally {
+      setIsSavingBatch(false);
+    }
+  };
 
   const courseWorkflow = formData["Workflow"] || formData["Publication Workflow"] || "";
   const { jobTitle, stageAssignments } = parseWorkflowAndStages(courseWorkflow);
@@ -50,15 +260,17 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
 
   const parsedWorkflows = useMemo(() => {
     if (!Array.isArray(workflowData)) return [];
-    return workflowData.map(row => {
+    return workflowData.map((row, idx) => {
       const idKey = Object.keys(row).find(h => {
         const cleaned = h.trim().toLowerCase();
         return cleaned === "workflow title" || cleaned === "title";
       }) || Object.keys(row)[0] || "Workflow Title";
       
       const rawText = String(row[idKey] || "");
-      const structured = parseWorkflowTitle(rawText);
+      const rowId = row["ID"] || row["id"] || row["Workflow ID"] || `row-${idx}`;
+      const structured = parseWorkflowTitle(rawText, String(rowId));
       return {
+        id: structured.id,
         title: structured.title || rawText || "",
         stages: structured.stages || [],
         rawText
@@ -66,10 +278,25 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
     }).filter(item => item.title.trim() !== "");
   }, [workflowData]);
 
+  const matchingWorkflow = parsedWorkflows.find(w => w.id === jobTitle || w.title.trim().toLowerCase() === jobTitle.trim().toLowerCase());
+  const displayWorkflowTitle = matchingWorkflow ? matchingWorkflow.title : jobTitle;
+
+  const handleWorkflowChange = (selectedTitle: string, headerKey: string = "Workflow") => {
+    const found = parsedWorkflows.find(w => w.title.trim().toLowerCase() === selectedTitle.trim().toLowerCase());
+    const saveId = found ? found.id : selectedTitle;
+    const currentVal = formData[headerKey] || "";
+    const parsed = parseWorkflowAndStages(currentVal);
+    if (parsed.jobTitle !== saveId) {
+      const serialized = serializeWorkflowAndStages(saveId, parsed.stageAssignments);
+      handleChange("Workflow", serialized);
+      handleChange("Publication Workflow", serialized);
+    }
+  };
+
   useEffect(() => {
     if (jobTitle) {
       const matchingWorkflow = parsedWorkflows.find(w => 
-        w.title.trim().toLowerCase() === jobTitle.trim().toLowerCase()
+        w.id === jobTitle || w.title.trim().toLowerCase() === jobTitle.trim().toLowerCase()
       );
       
       if (matchingWorkflow && matchingWorkflow.stages.length > 0) {
@@ -80,7 +307,7 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
           }
           return {
             "ID": stage.id,
-            "Job Title": jobTitle,
+            "Job Title": matchingWorkflow.title,
             "Workflow Stage": name,
             "Key Responsibilities": stage.tasks.join(', '),
             "Deliverables": stage.deliverables.join(', ')
@@ -247,59 +474,71 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
   const renderField = (header: string) => {
     if (["Banner", "Course Title", "Course Code", "Mode"].includes(header)) return null;
 
-    return (
-      <div key={header} className="space-y-1">
-        <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">{header}</label>
-        {header === "Workflow" || header === "Publication Workflow" ? (
+    if (header === "Workflow" || header === "Publication Workflow") {
+      return (
+        <div key={header} className="space-y-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">{header}</label>
           <SearchableSingleSelect
-            value={parseWorkflowAndStages(formData[header] || "").jobTitle}
-            onChange={(val) => {
-              const currentVal = formData[header] || "";
-              const parsed = parseWorkflowAndStages(currentVal);
-              if (parsed.jobTitle === val) {
-                handleChange(header, currentVal);
-              } else {
-                handleChange(header, val);
-              }
-            }}
+            value={displayWorkflowTitle}
+            onChange={(val) => handleWorkflowChange(val, header)}
             options={parsedWorkflows.map(w => w.title.trim())}
             placeholder="Select Job Title"
           />
-        ) : ["Instractor", "Instructor"].includes(header) ? (
-          <div className="space-y-2">
-            <EmployeeMultiSelect
-              selectedIds={resolveNamesOrIdsToIds(formData[header] || "", employees)}
-              onChange={(ids) => handleChange(header, ids.join(','))}
-              employees={employees}
-            />
-          </div>
-        ) : ["Duration", "Class", "No. of Class", "Student Size", "Batches", "Enrolled", "Enrollments", "Student", "Batch Number", "Discount", "Expenses", "Net Profit"].includes(header) ? (
-          <input
-            type="number"
-            value={formData[header] === undefined || formData[header] === "—" ? "" : formData[header]}
-            onChange={(e) => handleChange(header, e.target.value)}
-            className="w-full px-3 py-2 text-xs border border-gray-200 rounded focus:border-teal-500 outline-none bg-white"
+        </div>
+      );
+    }
+    if (["Instractor", "Instructor"].includes(header)) {
+      return (
+        <div key={header} className="space-y-2">
+          <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">{header}</label>
+          <EmployeeMultiSelect
+            selectedIds={resolveNamesOrIdsToIds(formData[header] || "", employees)}
+            onChange={(ids) => handleChange(header, ids.join(','))}
+            employees={employees}
           />
-        ) : ["Start Date", "End Date"].includes(header) ? (
-          <input
-            type="date"
-            value={formData[header] || ""}
-            onChange={(e) => handleChange(header, e.target.value)}
-            className="w-full px-3 py-2 text-xs border border-gray-200 rounded focus:border-teal-500 outline-none bg-white"
-          />
-        ) : ["Course Fee"].includes(header) ? (
-          <div className="relative flex items-center">
-            <span className="absolute left-3 text-xs font-semibold text-gray-500 pointer-events-none">৳</span>
-            <input
-              type="number"
-              value={formData[header] === undefined || formData[header] === "—" ? "" : String(formData[header]).replace(/,/g, '')}
-              onChange={(e) => handleChange(header, e.target.value)}
-              className="w-full pl-7 pr-3 py-2 text-xs border border-gray-200 rounded focus:border-teal-500 outline-none bg-white"
-            />
-          </div>
-        ) : header === "Gross Revenue" || header === "Net Revenue" || header === "Net Profit" || header === "Profit %" ? (
-          <div className="relative flex items-center px-3 py-2 bg-gray-50/50 border border-gray-100 rounded">
-            <span className={cn("text-xs font-semibold text-gray-500 mr-2", header === "Profit %" && "hidden")}>৳</span>
+        </div>
+      );
+    }
+    if (["Duration", "Class", "No. of Class", "Student Size", "Batches", "Enrolled", "Enrollments", "Student", "Batch Number", "Discount", "Expenses", "Net Profit"].includes(header)) {
+      return (
+        <FloatingInput
+          key={header}
+          label={header}
+          type="number"
+          value={formData[header] === undefined || formData[header] === "—" ? "" : formData[header]}
+          onChange={(e: any) => handleChange(header, e.target.value)}
+        />
+      );
+    }
+    if (["Start Date", "End Date"].includes(header)) {
+      return (
+        <FloatingInput
+          key={header}
+          label={header}
+          type="date"
+          value={formData[header] || ""}
+          onChange={(e: any) => handleChange(header, e.target.value)}
+        />
+      );
+    }
+    if (["Course Fee"].includes(header)) {
+      return (
+        <FloatingInput
+          key={header}
+          label={header}
+          type="number"
+          prefix="৳"
+          value={formData[header] === undefined || formData[header] === "—" ? "" : String(formData[header]).replace(/,/g, '')}
+          onChange={(e: any) => handleChange(header, e.target.value)}
+        />
+      );
+    }
+    if (header === "Gross Revenue" || header === "Net Revenue" || header === "Net Profit" || header === "Profit %") {
+      return (
+        <div key={header} className="relative flex items-center px-3 py-3 bg-gray-50/50 border border-gray-100 rounded-lg">
+          <span className={cn("text-xs font-semibold text-gray-500 mr-2", header === "Profit %" && "hidden")}>৳</span>
+          <div className="flex flex-col">
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{header}</span>
             <span className="text-xs font-bold text-gray-900">
               {(() => {
                 const fee = parseFloat(String(formData["Course Fee"] || "0").replace(/[^0-9.]/g, ""));
@@ -320,25 +559,30 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
               })()}
             </span>
           </div>
-        ) : (
-          <input
-            type="text"
-            value={formData[header] || ""}
-            onChange={(e) => handleChange(header, e.target.value)}
-            className="w-full px-3 py-2 text-xs border border-gray-200 rounded focus:border-teal-500 outline-none bg-white"
-          />
-        )}
-      </div>
+        </div>
+      );
+    }
+
+    return (
+      <FloatingInput
+        key={header}
+        label={header}
+        type="text"
+        value={formData[header] || ""}
+        onChange={(e: any) => handleChange(header, e.target.value)}
+      />
     );
   };
 
   const workflowHeaders = ["Workflow", "Publication Workflow"];
   const accountingHeaders = ["Course Fee", "Discount", "Expenses", "Gross Revenue", "Net Revenue", "Net Profit", "Profit %"];
-  let infoHeaders = headers.filter(h => !workflowHeaders.includes(h) && !accountingHeaders.includes(h) && !["Banner", "Course Title", "Course Code", "Mode", "Workflow"].includes(h));
+  let infoHeaders = headers.filter(h => !workflowHeaders.includes(h) && !accountingHeaders.includes(h) && !["Banner", "Course Title", "Course Code", "Mode", "Workflow", "Student Size", "Student"].includes(h));
+
+  const classHeader = headers.find(h => h === "Class" || h === "No. of Class") || "Class";
+  const studentSizeHeader = headers.find(h => h === "Student Size" || h === "Student" || h.toLowerCase().includes("student") || h.toLowerCase().includes("size")) || "Student Size";
 
   if (title === "Edit Course" || title === "Add New Course") {
-    const classHeader = headers.find(h => h === "Class" || h === "No. of Class") || "Class";
-    infoHeaders = ["Duration", classHeader, "Student Size"];
+    infoHeaders = ["Duration", classHeader];
   }
 
   return (
@@ -349,7 +593,7 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: "100%", opacity: 0 }}
           transition={{ type: "spring", damping: 30, stiffness: 300 }}
-          className="absolute top-0 right-0 bottom-0 w-80 bg-white shadow-2xl flex flex-col z-40 overflow-hidden"
+          className="absolute top-0 right-0 bottom-0 w-[420px] bg-white shadow-2xl flex flex-col z-40 overflow-hidden"
         >
           <form onSubmit={handleSubmit} className="h-full flex flex-col">
             {/* Banner Section (Identity) */}
@@ -421,54 +665,79 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
               />
 
               {/* Identity Fields */}
-              <div className="absolute bottom-3 left-3 right-3 space-y-2">
-                <input
-                  type="text"
-                  value={formData["Course Title"] || ""}
-                  onChange={(e) => handleChange("Course Title", e.target.value)}
-                  placeholder="Enter Course Title..."
-                  className="w-full bg-transparent text-white text-xs font-bold uppercase tracking-widest outline-none placeholder:text-white/30 drop-shadow-lg"
-                />
-                
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      value={formData["Course Code"] || ""}
-                      onChange={(e) => handleChange("Course Code", e.target.value)}
-                      placeholder="CODE"
-                      className="w-16 px-1.5 py-0.5 bg-black/30 backdrop-blur-md rounded border border-white/10 text-[9px] font-bold text-white/90 uppercase tracking-tighter outline-none focus:border-white/40"
-                    />
-                  </div>
+              {(title === "Edit Course" || title === "Add New Course") ? (
+                <div className="absolute bottom-3 right-3 flex bg-black/40 backdrop-blur-md rounded-lg border border-white/10 p-1 gap-1">
+                  {["Online", "Offline", "Hybrid"].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => handleChange("Mode", m)}
+                      className={cn(
+                        "px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded transition-all",
+                        (formData["Mode"] || "Hybrid").toLowerCase() === m.toLowerCase()
+                          ? "bg-teal-500 text-white shadow-sm"
+                          : "text-white/60 hover:text-white"
+                      )}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="absolute bottom-3 left-3 right-3 space-y-2">
+                  <input
+                    type="text"
+                    value={formData["Course Title"] || ""}
+                    onChange={(e) => handleChange("Course Title", e.target.value)}
+                    placeholder="Enter Course Title..."
+                    className="w-full bg-transparent text-white text-xs font-bold uppercase tracking-widest outline-none placeholder:text-white/30 drop-shadow-lg"
+                  />
                   
-                  <div className="flex bg-black/30 backdrop-blur-md rounded border border-white/10 p-0.5 gap-0.5">
-                    {["Online", "Offline", "Hybrid"].map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => handleChange("Mode", m)}
-                        className={cn(
-                          "px-1.5 py-0.5 text-[7.5px] font-bold uppercase tracking-wider rounded transition-all",
-                          (formData["Mode"] || "Hybrid").toLowerCase() === m.toLowerCase()
-                            ? "bg-teal-500 text-white"
-                            : "text-white/40 hover:text-white/60"
-                        )}
-                      >
-                        {m}
-                      </button>
-                    ))}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={formData["Course Code"] || ""}
+                        onChange={(e) => handleChange("Course Code", e.target.value)}
+                        placeholder="CODE"
+                        className="w-16 px-1.5 py-0.5 bg-black/30 backdrop-blur-md rounded border border-white/10 text-[9px] font-bold text-white/90 uppercase tracking-tighter outline-none focus:border-white/40"
+                      />
+                    </div>
+                    
+                    <div className="flex bg-black/30 backdrop-blur-md rounded border border-white/10 p-0.5 gap-0.5">
+                      {["Online", "Offline", "Hybrid"].map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => handleChange("Mode", m)}
+                          className={cn(
+                            "px-1.5 py-0.5 text-[7.5px] font-bold uppercase tracking-wider rounded transition-all",
+                            (formData["Mode"] || "Hybrid").toLowerCase() === m.toLowerCase()
+                              ? "bg-teal-500 text-white"
+                              : "text-white/40 hover:text-white/60"
+                          )}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Tab Selector */}
             <div className="flex overflow-x-auto no-scrollbar whitespace-nowrap border-b border-gray-100 bg-gray-50/50 p-1 gap-1 flex-shrink-0">
-              {[
+              {(title === "Edit Course" || title === "Add New Course" || "Course Code" in formData ? [
+                { id: "info", label: "Info", icon: Info },
+                { id: "batches", label: "Batches", icon: Layers },
+                { id: "workflow", label: "Workflow", icon: Workflow },
+                { id: "accounting", label: "Accounting", icon: Calculator }
+              ] : [
                 { id: "info", label: "Info", icon: Info },
                 { id: "workflow", label: "Workflow", icon: Workflow },
                 { id: "accounting", label: "Accounting", icon: Calculator }
-              ].map((tab) => (
+              ]).map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
@@ -487,15 +756,249 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
             </div>
 
             {/* Scrollable Form Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-5 no-scrollbar bg-slate-50/30">
+            <div className="flex-1 overflow-y-auto px-4 pt-5 pb-6 space-y-5 no-scrollbar bg-slate-50/30">
               {activeTab === "info" && (
                 <div className="space-y-4">
                   <div className="pb-2 border-b border-gray-100">
                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">Course Metadata</span>
                   </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    {infoHeaders.map(renderField)}
+                  {(title === "Edit Course" || title === "Add New Course") ? (
+                    <div className="space-y-4">
+                      {/* 1. Course Code */}
+                      <FloatingInput
+                        label="Course Code"
+                        type="text"
+                        value={formData["Course Code"] || ""}
+                        onChange={(e: any) => handleChange("Course Code", e.target.value)}
+                        className="font-bold uppercase"
+                      />
+
+                      {/* 2. Course Title */}
+                      <FloatingInput
+                        label="Course Title"
+                        type="text"
+                        value={formData["Course Title"] || ""}
+                        onChange={(e: any) => handleChange("Course Title", e.target.value)}
+                      />
+
+                      {/* 3. Duration, Class & Student Size side by side */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <FloatingInput
+                          label="Duration"
+                          type="text"
+                          value={formData["Duration"] === undefined || formData["Duration"] === "—" ? "" : formData["Duration"]}
+                          onChange={(e: any) => handleChange("Duration", e.target.value)}
+                        />
+                        <FloatingInput
+                          label={classHeader}
+                          type="number"
+                          value={formData[classHeader] === undefined || formData[classHeader] === "—" ? "" : formData[classHeader]}
+                          onChange={(e: any) => handleChange(classHeader, e.target.value)}
+                        />
+                        <FloatingInput
+                          label={studentSizeHeader}
+                          type="number"
+                          value={formData[studentSizeHeader] === undefined || formData[studentSizeHeader] === "—" ? "" : formData[studentSizeHeader]}
+                          onChange={(e: any) => handleChange(studentSizeHeader, e.target.value)}
+                        />
+                      </div>
+
+                      {/* 5. Course Fee & Discount side by side */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <FloatingInput
+                          label="Course Fee"
+                          type="number"
+                          prefix="৳"
+                          value={formData["Course Fee"] === undefined || formData["Course Fee"] === "—" ? "" : String(formData["Course Fee"]).replace(/,/g, '')}
+                          onChange={(e: any) => handleChange("Course Fee", e.target.value)}
+                        />
+                        <FloatingInput
+                          label="Discount"
+                          type="number"
+                          prefix="৳"
+                          value={formData["Discount"] === undefined || formData["Discount"] === "—" ? "" : String(formData["Discount"]).replace(/,/g, '')}
+                          onChange={(e: any) => handleChange("Discount", e.target.value)}
+                        />
+                      </div>
+
+                      {/* 5. Select Workflow */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Select Workflow</label>
+                        <SearchableSingleSelect
+                          value={displayWorkflowTitle}
+                          onChange={(val) => handleWorkflowChange(val)}
+                          options={parsedWorkflows.map(w => w.title.trim())}
+                          placeholder="Select Job Title / Workflow"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                      {infoHeaders.map(renderField)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "batches" && (
+                <div className="space-y-4">
+                  <div className="pb-2 border-b border-gray-100 flex items-center justify-between">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">Course Batches ({courseBatches.length})</span>
+                    {!showAddBatch && currentCourseCode && (
+                      <button
+                        type="button"
+                        onClick={handleOpenAddBatch}
+                        className="flex items-center gap-1 px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-600 rounded-md border border-teal-100 text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Create Batch
+                      </button>
+                    )}
                   </div>
+
+                  {showAddBatch ? (
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-4 shadow-xs relative">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">
+                          {editingBatch ? "Edit Batch" : "Create New Batch"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddBatch(false);
+                            setEditingBatch(null);
+                          }}
+                          className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-3.5">
+                        <FloatingInput
+                          label="Batch Number"
+                          type="text"
+                          value={newBatch["Batch Number"]}
+                          onChange={(e: any) => setNewBatch(prev => ({ ...prev, "Batch Number": e.target.value }))}
+                        />
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <FloatingInput
+                            label="Start Date"
+                            type="date"
+                            value={newBatch["Start Date"]}
+                            onChange={(e: any) => setNewBatch(prev => ({ ...prev, "Start Date": e.target.value }))}
+                          />
+                          <FloatingInput
+                            label="End Date"
+                            type="date"
+                            value={newBatch["End Date"]}
+                            onChange={(e: any) => setNewBatch(prev => ({ ...prev, "End Date": e.target.value }))}
+                          />
+                        </div>
+
+                        <FloatingInput
+                          label="Student Count"
+                          type="number"
+                          value={newBatch["Student"]}
+                          onChange={(e: any) => setNewBatch(prev => ({ ...prev, "Student": e.target.value }))}
+                        />
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Instructor</label>
+                          <EmployeeMultiSelect
+                            selectedIds={resolveNamesOrIdsToIds(newBatch["Instractor"] || "", employees)}
+                            onChange={(ids) => setNewBatch(prev => ({ ...prev, "Instractor": ids.join(',') }))}
+                            employees={employees}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddBatch(false);
+                            setEditingBatch(null);
+                          }}
+                          className="flex-1 py-2 bg-slate-50 text-slate-600 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-slate-200 hover:bg-slate-100 transition-all cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveBatchClick}
+                          disabled={isSavingBatch}
+                          className="flex-1 py-2 bg-teal-600 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg hover:bg-teal-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-70 shadow-sm"
+                        >
+                          {isSavingBatch ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          {editingBatch ? "Save" : "Create"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Batch List */}
+                  {!currentCourseCode ? (
+                    <div className="flex flex-col items-center justify-center p-6 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                      <Info className="w-8 h-8 text-slate-300 mb-2" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Course Code Required</span>
+                      <p className="text-[8px] text-slate-400 mt-1">Please enter a Course Code in the Info tab first to manage batches.</p>
+                    </div>
+                  ) : courseBatches.length === 0 && !showAddBatch ? (
+                    <div className="flex flex-col items-center justify-center p-6 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                      <Layers className="w-8 h-8 text-slate-300 mb-2" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">No Batches Created Yet</span>
+                      <p className="text-[8px] text-slate-400 mt-1">Click "Create Batch" above to create the first batch for this course.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden border border-slate-150 rounded-xl bg-white shadow-3xs">
+                      <table className="w-full text-left border-collapse text-[10px]">
+                        <thead>
+                          <tr className="border-b border-slate-150 bg-slate-50/70 text-slate-500 uppercase tracking-wider font-bold">
+                            <th className="py-2.5 px-3 text-[9px]">Batch No</th>
+                            <th className="py-2.5 px-2 text-[9px]">Start Date</th>
+                            <th className="py-2.5 px-2 text-[9px]">End Date</th>
+                            <th className="py-2.5 px-3 text-[9px] text-right">Student</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {courseBatches.map((batch, idx) => {
+                            const batchNumber = batch["Batch Number"] || "Batch-00";
+                            const startDate = batch["Start Date"] ? formatToMmmDdYyyy(batch["Start Date"]) : "—";
+                            const endDate = batch["End Date"] ? formatToMmmDdYyyy(batch["End Date"]) : "—";
+                            const studentCount = batch["Student"] || "0";
+
+                            return (
+                              <tr
+                                key={idx}
+                                onClick={() => handleOpenEditBatch(batch)}
+                                className="border-b border-slate-100 hover:bg-slate-50/60 cursor-pointer transition-colors"
+                                title="Click to edit batch information"
+                              >
+                                <td className="py-3 px-3 font-semibold text-slate-800">
+                                  <div className="flex items-center gap-1">
+                                    <span className={isBatchRunning(batch) ? 'text-amber-800 bg-amber-50/80 px-1.5 py-0.5 rounded border border-amber-200/50 font-bold' : 'text-slate-800'}>
+                                      {batchNumber}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-2 text-slate-500 font-medium">
+                                  {startDate}
+                                </td>
+                                <td className="py-3 px-2 text-slate-500 font-medium">
+                                  {endDate}
+                                </td>
+                                <td className="py-3 px-3 text-right font-semibold text-slate-700">
+                                  {studentCount}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -509,17 +1012,8 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Select Workflow</label>
                       <SearchableSingleSelect
-                        value={jobTitle}
-                        onChange={(val) => {
-                          const currentVal = formData["Workflow"] || formData["Publication Workflow"] || "";
-                          const parsed = parseWorkflowAndStages(currentVal);
-                          if (parsed.jobTitle !== val) {
-                            // If a new jobTitle is selected, serialize it with empty stage assignments or matching ones
-                            const serialized = serializeWorkflowAndStages(val, {});
-                            handleChange("Workflow", serialized);
-                            handleChange("Publication Workflow", serialized);
-                          }
-                        }}
+                        value={displayWorkflowTitle}
+                        onChange={(val) => handleWorkflowChange(val)}
                         options={parsedWorkflows.map(w => w.title.trim())}
                         placeholder="Select Job Title / Workflow"
                       />
@@ -642,30 +1136,24 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
                   <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
                     <div className="p-4 space-y-3.5">
                       {/* Course Fee */}
-                      <div className="flex justify-between items-center gap-4">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Course Fee</span>
-                        <div className="relative flex items-center w-32 shrink-0">
-                          <span className="absolute left-2.5 text-[11px] font-bold text-slate-400">৳</span>
-                          <input
-                            type="number"
-                            value={formData["Course Fee"] === undefined || formData["Course Fee"] === "—" ? "" : String(formData["Course Fee"]).replace(/,/g, '')}
-                            onChange={(e) => handleChange("Course Fee", e.target.value)}
-                            className="w-full pl-6 pr-2 py-1.5 text-[11px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-teal-500 outline-none text-right transition-all"
-                          />
-                        </div>
+                      <div className="w-full">
+                        <FloatingInput
+                          label="Course Fee"
+                          type="number"
+                          prefix="৳"
+                          value={formData["Course Fee"] === undefined || formData["Course Fee"] === "—" ? "" : String(formData["Course Fee"]).replace(/,/g, '')}
+                          onChange={(e: any) => handleChange("Course Fee", e.target.value)}
+                        />
                       </div>
 
                       {/* Enrolled */}
-                      <div className="flex justify-between items-center gap-4">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Enrolled</span>
-                        <div className="w-32 shrink-0">
-                          <input
-                            type="number"
-                            value={formData["Enrolled"] || formData["Enrollments"] || ""}
-                            onChange={(e) => handleChange("Enrolled", e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-[11px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-teal-500 outline-none text-right transition-all"
-                          />
-                        </div>
+                      <div className="w-full">
+                        <FloatingInput
+                          label="Total Enrolled"
+                          type="number"
+                          value={formData["Enrolled"] || formData["Enrollments"] || ""}
+                          onChange={(e: any) => handleChange("Enrolled", e.target.value)}
+                        />
                       </div>
 
                       <div className="h-px bg-slate-100" />
@@ -684,17 +1172,14 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
                       </div>
 
                       {/* Discount */}
-                      <div className="flex justify-between items-center gap-4">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Discount Allowed</span>
-                        <div className="relative flex items-center w-32 shrink-0">
-                          <span className="absolute left-2.5 text-[11px] font-bold text-rose-400">- ৳</span>
-                          <input
-                            type="number"
-                            value={formData["Discount"] === undefined || formData["Discount"] === "—" ? "" : String(formData["Discount"]).replace(/,/g, '')}
-                            onChange={(e) => handleChange("Discount", e.target.value)}
-                            className="w-full pl-8 pr-2 py-1.5 text-[11px] font-bold text-rose-600 bg-rose-50/30 border border-rose-100 rounded-lg focus:bg-white focus:border-rose-500 outline-none text-right transition-all"
-                          />
-                        </div>
+                      <div className="w-full">
+                        <FloatingInput
+                          label="Discount Allowed"
+                          type="number"
+                          prefix="- ৳"
+                          value={formData["Discount"] === undefined || formData["Discount"] === "—" ? "" : String(formData["Discount"]).replace(/,/g, '')}
+                          onChange={(e: any) => handleChange("Discount", e.target.value)}
+                        />
                       </div>
 
                       <div className="h-px bg-slate-100" />
@@ -715,17 +1200,14 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
                       </div>
 
                       {/* Expenses */}
-                      <div className="flex justify-between items-center gap-4">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Expenses</span>
-                        <div className="relative flex items-center w-32 shrink-0">
-                          <span className="absolute left-2.5 text-[11px] font-bold text-amber-400">- ৳</span>
-                          <input
-                            type="number"
-                            value={formData["Expenses"] === undefined || formData["Expenses"] === "—" ? "" : String(formData["Expenses"]).replace(/,/g, '')}
-                            onChange={(e) => handleChange("Expenses", e.target.value)}
-                            className="w-full pl-8 pr-2 py-1.5 text-[11px] font-bold text-amber-600 bg-amber-50/30 border border-amber-100 rounded-lg focus:bg-white focus:border-amber-500 outline-none text-right transition-all"
-                          />
-                        </div>
+                      <div className="w-full">
+                        <FloatingInput
+                          label="Total Expenses"
+                          type="number"
+                          prefix="- ৳"
+                          value={formData["Expenses"] === undefined || formData["Expenses"] === "—" ? "" : String(formData["Expenses"]).replace(/,/g, '')}
+                          onChange={(e: any) => handleChange("Expenses", e.target.value)}
+                        />
                       </div>
 
                       <div className="border-t-2 border-double border-slate-200 mt-2 pt-3">

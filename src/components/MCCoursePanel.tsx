@@ -18,6 +18,7 @@ interface MCCoursePanelProps {
   allDocuments?: any[];
   onSaveDocument?: (formData: any, editingRow: any | null) => Promise<void>;
   workflowData?: any[];
+  onExpand?: (course: any) => void;
 }
 
 export default function MCCoursePanel({ 
@@ -31,7 +32,8 @@ export default function MCCoursePanel({
   onSaveBatch,
   allDocuments,
   onSaveDocument,
-  workflowData = []
+  workflowData = [],
+  onExpand
 }: MCCoursePanelProps) {
   const [isEditing, setIsEditing] = useState(!initialData);
 
@@ -63,6 +65,8 @@ export default function MCCoursePanel({
         title={initialData ? "Edit Course" : "Add New Course"}
         employees={employees}
         workflowData={workflowData}
+        allBatches={allBatches}
+        onSaveBatch={onSaveBatch}
       />
     );
   }
@@ -72,6 +76,10 @@ export default function MCCoursePanel({
       isOpen={isOpen}
       onClose={onClose}
       onEdit={() => setIsEditing(true)}
+      onExpand={onExpand ? () => {
+        onExpand(initialData);
+        onClose();
+      } : undefined}
       data={initialData}
       headers={["Course Title", "Course Code", "Banner", "Publication Workflow"]}
       title="View Course"

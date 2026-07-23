@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Edit2, Globe, Clock, Calendar, Users, CheckCircle, Target, BookOpen, AlertCircle, Save, Loader2, TrendingUp, Briefcase, GripVertical, Tag, Percent, Banknote, CreditCard, Wallet, PieChart, Trash2 } from 'lucide-react';
+import { X, Edit2, Globe, Clock, Calendar, Users, CheckCircle, Target, BookOpen, AlertCircle, Save, Loader2, TrendingUp, Briefcase, GripVertical, Tag, Percent, Banknote, CreditCard, Wallet, PieChart, Trash2, Minimize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import EmployeeMultiSelect from './EmployeeMultiSelect';
 import MCBatchPanel from './MCBatchPanel';
@@ -662,10 +662,11 @@ export default function MCCourseDetails({
       {isOpen && (
         <>
         <motion.div
-          initial={{ opacity: 0, scale: 0.99 }}
+          layoutId="course-details-panel"
+          initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.99 }}
-          transition={{ duration: 0.15 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ type: "spring", duration: 0.4, bounce: 0 }}
           className="absolute inset-0 z-50 bg-gradient-to-br from-slate-50 via-white to-teal-50 shadow-xl overflow-hidden flex flex-col lg:flex-row"
         >
           {/* Left Main Area: Fixed Banner + Scrollable Info Grid */}
@@ -687,6 +688,16 @@ export default function MCCourseDetails({
 
                     return (
                       <div className="w-full h-28 md:h-32 relative bg-teal-900 flex items-center justify-center">
+                        {/* Top-Left Collapse Button */}
+                        <div className="absolute top-2.5 left-2.5 z-20">
+                          <button 
+                            onClick={onClose} 
+                            className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-xs transition-all border border-white/10 cursor-pointer shadow-sm hover:scale-105 active:scale-95 flex items-center justify-center"
+                            title="Collapse to Side View"
+                          >
+                            <Minimize2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                         {displayUrl ? (
                           <img
                             src={displayUrl}
@@ -1156,9 +1167,9 @@ export default function MCCourseDetails({
                                           <React.Fragment key={index}>
                                             <tr 
                                               onClick={() => handleSelectBatchWithAutoSave(index, batchKey)}
-                                              className={cn("group transition-all duration-150 text-xs hover:bg-gray-50/80 cursor-pointer", selectedBatchIndex === index ? "bg-teal-50/50" : "")}
+                                              className={cn("group transition-all duration-150 text-xs hover:bg-gray-50/80 cursor-pointer", selectedBatchIndex === index ? "bg-teal-100/85 hover:bg-teal-100" : "")}
                                             >
-                                              <td className={cn("px-2 py-1 text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis border-r border-gray-100 transition-all duration-150 text-left", selectedBatchIndex === index ? "border-l-2 border-teal-500" : "")}>
+                                              <td className={cn("px-2 py-1 text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis border-r border-gray-100 transition-all duration-150 text-left", selectedBatchIndex === index ? "border-l-[3px] border-teal-600" : "")}>
                                                 <div className="flex items-center gap-1.5">
                                                   <span className="font-medium text-gray-900">{localBatch["Batch Number"] || "N/A"}</span>
                                                   {isBatchDirty && (

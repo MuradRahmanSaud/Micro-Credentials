@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from "react";
-import { X, Pencil, Lightbulb, PenTool, ShieldCheck, CheckCircle2, Clock, Calendar, Users, Award, BookOpen, ChevronDown, ChevronUp, Plus, Save, Loader2, TrendingUp, FileText, Link as LinkIcon, Tag as TagIcon, Upload, Eye, Briefcase, AlertCircle } from "lucide-react";
+import { X, Pencil, Lightbulb, PenTool, ShieldCheck, CheckCircle2, Clock, Calendar, Users, Award, BookOpen, ChevronDown, ChevronUp, Plus, Save, Loader2, TrendingUp, FileText, Link as LinkIcon, Tag as TagIcon, Upload, Eye, Briefcase, AlertCircle, Maximize2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { resolveNamesOrIdsToIds, formatToMmmDdYyyy, isBatchRunning, parseWorkflowAndStages, getStageAssignment, parseWorkflowTitle } from "../lib/utils";
 import EmployeeMultiSelect from "./EmployeeMultiSelect";
+import { FloatingInput } from "./SideEdit";
 import axios from "axios";
 import { FOLDER_LOCATIONS } from "../FolderLocation";
 
@@ -10,6 +11,7 @@ export interface SideViewProps {
   isOpen: boolean;
   onClose: () => void;
   onEdit?: () => void;
+  onExpand?: () => void;
   data: any;
   headers: string[];
   title: string;
@@ -21,7 +23,7 @@ export interface SideViewProps {
   workflowData?: any[];
 }
 
-export default function SideView({ isOpen, onClose, onEdit, data, headers, title, employees, allBatches, onSaveBatch, allDocuments, onSaveDocument, workflowData = [] }: SideViewProps) {
+export default function SideView({ isOpen, onClose, onEdit, onExpand, data, headers, title, employees, allBatches, onSaveBatch, allDocuments, onSaveDocument, workflowData = [] }: SideViewProps) {
   const [activeTab, setActiveTab] = useState<"workflow" | "batches" | "info" | "accounting" | "documents">("workflow");
   const [expandedBatchIndex, setExpandedBatchIndex] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -76,15 +78,17 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
 
   const parsedWorkflows = useMemo(() => {
     if (!Array.isArray(workflowData)) return [];
-    return workflowData.map(row => {
+    return workflowData.map((row, idx) => {
       const idKey = Object.keys(row).find(h => {
         const cleaned = h.trim().toLowerCase();
         return cleaned === "workflow title" || cleaned === "title";
       }) || Object.keys(row)[0] || "Workflow Title";
       
       const rawText = String(row[idKey] || "");
-      const structured = parseWorkflowTitle(rawText);
+      const rowId = row["ID"] || row["id"] || row["Workflow ID"] || `row-${idx}`;
+      const structured = parseWorkflowTitle(rawText, String(rowId));
       return {
+        id: structured.id,
         title: structured.title || rawText || "",
         stages: structured.stages || [],
         rawText
@@ -100,7 +104,7 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
     const { jobTitle } = parseWorkflowAndStages(courseWorkflow);
 
     const matchingWorkflow = parsedWorkflows.find(w => 
-      w.title.trim().toLowerCase() === jobTitle.trim().toLowerCase()
+      w.id === jobTitle || w.title.trim().toLowerCase() === jobTitle.trim().toLowerCase()
     );
 
     if (matchingWorkflow && matchingWorkflow.stages.length > 0) {
@@ -143,11 +147,12 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
     <AnimatePresence>
       {isOpen && data && (
         <motion.div
-          initial={{ x: "100%", opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: "100%", opacity: 0 }}
-          transition={{ type: "spring", damping: 30, stiffness: 300 }}
-          className="absolute top-0 right-0 bottom-0 w-80 bg-white shadow-2xl flex flex-col z-40"
+          layoutId="course-details-panel"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ type: "spring", duration: 0.4, bounce: 0 }}
+          className="absolute top-0 right-0 bottom-0 w-[420px] bg-white shadow-2xl flex flex-col z-40 overflow-hidden"
         >
           {isCourseView ? (
             <div className="flex flex-col shrink-0 border-b border-gray-100">
@@ -162,6 +167,19 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                   />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-teal-800 to-teal-700" />
+                )}
+                
+                {/* Top-Left Expand Button */}
+                {onExpand && (
+                  <div className="absolute top-2.5 left-2.5 z-20">
+                    <button 
+                      onClick={onExpand} 
+                      className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-xs transition-all border border-white/10 cursor-pointer shadow-sm hover:scale-105 active:scale-95 flex items-center justify-center"
+                      title="Expand to Full View"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 )}
                 
                 {/* Dark gradient overlay for readability of bottom text */}
@@ -189,7 +207,7 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                   </div>
                 </div>
 
-                {/* Bottom aligned content: Title & Code (left) */}
+                {/* Bottom aligned content: Title & Code (left) and Mode badge (right) */}
                 <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-3 z-10">
                   {/* Left: Course Title and Course Code */}
                   <div className="flex flex-col items-start text-left min-w-0">
@@ -202,19 +220,15 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                       </span>
                     )}
                   </div>
-                </div>
-              </div>
 
-              {/* Mode indicator below banner in right corner */}
-              {data["Mode"] && (
-                <div className="relative h-0">
-                  <div className="absolute right-3 -top-3.5 z-30">
-                    <div className="bg-teal-600 text-white px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-widest shadow-lg border border-teal-500/50">
+                  {/* Right: Mode Badge */}
+                  {data["Mode"] && (
+                    <div className="bg-teal-600/90 text-white px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-widest shadow-md border border-teal-400/40 backdrop-blur-xs shrink-0">
                       {data["Mode"]}
                     </div>
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Tab Selector below the banner */}
               <div className="flex overflow-x-auto no-scrollbar whitespace-nowrap border-t border-gray-100 bg-gray-50/50 p-1 gap-1 relative">
@@ -230,7 +244,7 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                     onClick={() => setActiveTab(tab.id as any)}
                     className={`shrink-0 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all cursor-pointer relative z-10 ${
                       activeTab === tab.id
-                        ? "text-teal-800"
+                        ? "text-teal-900 font-extrabold"
                         : "text-gray-500 hover:text-gray-800"
                     }`}
                   >
@@ -238,7 +252,7 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                     {activeTab === tab.id && (
                       <motion.div
                         layoutId="sideViewTab"
-                        className="absolute inset-0 bg-white shadow-3xs border border-gray-200/40 rounded-md -z-10"
+                        className="absolute inset-0 bg-teal-50 shadow-xs border border-teal-200 rounded-md -z-10"
                         transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                       />
                     )}
@@ -302,7 +316,7 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                   }
 
                   const matchingWorkflow = parsedWorkflows.find(w => 
-                    w.title.trim().toLowerCase() === jobTitle.trim().toLowerCase()
+                    w.id === jobTitle || w.title.trim().toLowerCase() === jobTitle.trim().toLowerCase()
                   );
 
                   let matchingStages = [];
@@ -314,7 +328,7 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                       }
                       return {
                         "ID": stage.id,
-                        "Job Title": jobTitle,
+                        "Job Title": matchingWorkflow.title,
                         "Workflow Stage": name,
                         "Key Responsibilities": stage.tasks.join(', '),
                         "Deliverables": stage.deliverables.join(', ')
@@ -323,17 +337,29 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                   }
 
                   if (matchingStages.length === 0) {
+                    const displayTitle = parsedWorkflows.find(w => w.id === jobTitle)?.title || jobTitle;
                     return (
                       <div className="flex flex-col items-center justify-center p-6 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
                         <Briefcase className="w-8 h-8 text-slate-300 mb-2" />
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">No Stages Found</span>
-                        <p className="text-[9px] text-slate-400 mt-1">No workflow stages defined for "{jobTitle}".</p>
+                        <p className="text-[9px] text-slate-400 mt-1">No workflow stages defined for "{displayTitle}".</p>
                       </div>
                     );
                   }
 
+                  const displayTitle = parsedWorkflows.find(w => w.id === jobTitle)?.title || jobTitle;
+
                   return (
                     <div className="space-y-4">
+                      {jobTitle && (
+                        <div className="bg-white p-3 rounded-md border border-slate-200 shadow-3xs flex flex-col gap-1">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Job Title / Workflow</span>
+                          <span className="text-xs font-semibold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                            <Briefcase className="w-3.5 h-3.5 text-teal-600" />
+                            {displayTitle}
+                          </span>
+                        </div>
+                      )}
                       <div className="relative pl-1 pt-1 space-y-4">
                         {/* Vertical timeline line */}
                         <div className="absolute left-[13px] top-[14px] bottom-4 w-0.5 bg-slate-100" />
@@ -408,15 +434,17 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                             const courseBatches = (allBatches || []).filter(
                               (b: any) => String(b["Course Code"] || "").trim() === String(courseCode || "").trim()
                             );
-                            const batchNumbers = courseBatches
-                              .map((b: any) => parseInt(b["Batch Number"], 10))
-                              .filter((num: number) => !isNaN(num));
-                            const nextBatchNum = batchNumbers.length > 0 ? Math.max(...batchNumbers) + 1 : 1;
+                            const maxBatchNum = courseBatches.reduce((max: number, b: any) => {
+                              const match = String(b['Batch Number'] || '').match(/Batch-(\d+)/) || String(b['Batch Number'] || '').match(/(\d+)/);
+                              const num = match ? parseInt(match[1], 10) : 0;
+                              return Math.max(max, num);
+                            }, 0);
+                            const nextBatchNumStr = `Batch-${String(maxBatchNum + 1).padStart(2, '0')}`;
 
                             setShowAddForm(!showAddForm);
                             setNewBatchData({
                               "Course Code": courseCode || "",
-                              "Batch Number": String(nextBatchNum),
+                              "Batch Number": nextBatchNumStr,
                               "Start Date": "",
                               "End Date": "",
                               "Student": "",
@@ -440,70 +468,65 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
                           transition={{ duration: 0.2 }}
-                          className="relative z-[99] bg-slate-50/50 border border-slate-200/60 rounded-xl p-3 space-y-2.5 overflow-visible"
+                          className="relative z-[99] bg-white border border-gray-200 rounded-xl p-4 space-y-4 shadow-xs overflow-visible"
                         >
-                          <span className="text-[8.5px] font-bold text-teal-800 uppercase tracking-wider block">New Batch Information</span>
-                          
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Batch Number</label>
-                              <input
-                                type="number"
-                                value={newBatchData["Batch Number"] || ""}
-                                onChange={(e) => setNewBatchData({ ...newBatchData, "Batch Number": e.target.value })}
-                                placeholder="e.g. 1"
-                                className="w-full px-2.5 py-1.5 text-[10.5px] border border-slate-200 rounded-lg focus:border-teal-500 bg-white outline-none"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Students Count</label>
-                              <input
-                                type="number"
-                                value={newBatchData["Student"] || ""}
-                                onChange={(e) => setNewBatchData({ ...newBatchData, "Student": e.target.value })}
-                                placeholder="e.g. 25"
-                                className="w-full px-2.5 py-1.5 text-[10.5px] border border-slate-200 rounded-lg focus:border-teal-500 bg-white outline-none"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Start Date</label>
-                              <input
-                                type="date"
-                                value={newBatchData["Start Date"] || ""}
-                                onChange={(e) => setNewBatchData({ ...newBatchData, "Start Date": e.target.value })}
-                                className="w-full px-2.5 py-1.5 text-[10.5px] border border-slate-200 rounded-lg focus:border-teal-500 bg-white outline-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">End Date</label>
-                              <input
-                                type="date"
-                                value={newBatchData["End Date"] || ""}
-                                onChange={(e) => setNewBatchData({ ...newBatchData, "End Date": e.target.value })}
-                                className="w-full px-2.5 py-1.5 text-[10.5px] border border-slate-200 rounded-lg focus:border-teal-500 bg-white outline-none"
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Instructor</label>
-                            <EmployeeMultiSelect
-                              selectedIds={resolveNamesOrIdsToIds(newBatchData["Instractor"] || "", employees || [])}
-                              onChange={(ids) => setNewBatchData({ ...newBatchData, "Instractor": ids.join(',') })}
-                              employees={employees || []}
-                              placement="bottom"
-                            />
-                          </div>
-
-                          <div className="flex gap-2 pt-1">
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                            <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">Create New Batch</span>
                             <button
                               type="button"
                               onClick={() => setShowAddForm(false)}
-                              className="flex-1 py-1.5 bg-white text-slate-600 text-[10px] font-bold uppercase rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+                              className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="space-y-3.5">
+                            <FloatingInput
+                              label="Batch Number"
+                              type="text"
+                              value={newBatchData["Batch Number"] || ""}
+                              onChange={(e: any) => setNewBatchData((prev: any) => ({ ...prev, "Batch Number": e.target.value }))}
+                            />
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <FloatingInput
+                                label="Start Date"
+                                type="date"
+                                value={newBatchData["Start Date"] || ""}
+                                onChange={(e: any) => setNewBatchData((prev: any) => ({ ...prev, "Start Date": e.target.value }))}
+                              />
+                              <FloatingInput
+                                label="End Date"
+                                type="date"
+                                value={newBatchData["End Date"] || ""}
+                                onChange={(e: any) => setNewBatchData((prev: any) => ({ ...prev, "End Date": e.target.value }))}
+                              />
+                            </div>
+
+                            <FloatingInput
+                              label="Student Count"
+                              type="number"
+                              value={newBatchData["Student"] || ""}
+                              onChange={(e: any) => setNewBatchData((prev: any) => ({ ...prev, "Student": e.target.value }))}
+                            />
+
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Instructor</label>
+                              <EmployeeMultiSelect
+                                selectedIds={resolveNamesOrIdsToIds(newBatchData["Instractor"] || "", employees || [])}
+                                onChange={(ids) => setNewBatchData((prev: any) => ({ ...prev, "Instractor": ids.join(',') }))}
+                                employees={employees || []}
+                                placement="bottom"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowAddForm(false)}
+                              className="flex-1 py-2 bg-slate-50 text-slate-600 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-slate-200 hover:bg-slate-100 transition-all cursor-pointer"
                             >
                               Cancel
                             </button>
@@ -528,14 +551,14 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                                   setIsSavingBatch(false);
                                 }
                               }}
-                              className="flex-1 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold uppercase rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-70"
+                              className="flex-1 py-2 bg-teal-600 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg hover:bg-teal-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-70 shadow-sm"
                             >
                               {isSavingBatch ? (
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                               ) : (
                                 <Save className="w-3.5 h-3.5" />
                               )}
-                              <span>Save</span>
+                              <span>Create</span>
                             </button>
                           </div>
                         </motion.div>
@@ -546,7 +569,13 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                       const courseCode = data["Course Code"];
                       const courseBatches = (allBatches || []).filter(
                         (b: any) => String(b["Course Code"] || "").trim().toLowerCase() === String(courseCode || "").trim().toLowerCase()
-                      );
+                      ).sort((a: any, b: any) => {
+                        const getNum = (val: string) => {
+                          const m = String(val || '').match(/(\d+)/);
+                          return m ? parseInt(m[1], 10) : 0;
+                        };
+                        return getNum(a["Batch Number"]) - getNum(b["Batch Number"]);
+                      });
 
                       if (courseBatches.length === 0) {
                         return (
@@ -557,133 +586,221 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                         );
                       }
 
+
+
                       return (
-                        <div className="space-y-2.5">
-                          {courseBatches.map((batch: any, index: number) => {
-                            const isExpanded = expandedBatchIndex === index;
-                            
-                            // Resolve potential multiple instructors
-                            const instructorVal = batch["Instractor"] || batch["Instructor"];
-                            const instructorIds = instructorVal ? resolveNamesOrIdsToIds(String(instructorVal), employees || []) : [];
-                            const instructorEmployees = instructorIds.map(id => (employees || []).find(e => String(e['Employee ID'] || '').trim() === String(id).split('|')[0].trim() || String(e['Employee Name'] || '').trim().toLowerCase() === String(id).split('|')[0].trim().toLowerCase())).filter(Boolean);
-                            
-                            const getInstructorList = () => {
-                              if (instructorEmployees.length > 0) return instructorEmployees;
-                              if (!instructorVal || String(instructorVal).trim() === "") return [];
-                              return String(instructorVal).split(',').map(name => ({
-                                'Employee Name': name.trim(),
-                                Designation: "External Expert"
-                              }));
-                            };
-                            
-                            const instructorsToRender = getInstructorList();
+                        <div className="overflow-hidden border border-slate-150 rounded-xl bg-white shadow-3xs">
+                          <table className="w-full text-left border-collapse text-[10px]">
+                            <thead>
+                              <tr className="border-b border-slate-150 bg-slate-50/70 text-slate-500 uppercase tracking-wider font-bold">
+                                <th className="py-2.5 px-3 text-[9px]">Batch No</th>
+                                <th className="py-2.5 px-2 text-[9px]">Start Date</th>
+                                <th className="py-2.5 px-2 text-[9px]">End Date</th>
+                                <th className="py-2.5 px-3 text-[9px] text-right">Student</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {courseBatches.map((batch: any, index: number) => {
+                                const isExpanded = expandedBatchIndex === index;
+                                
+                                // Parse batch-specific workflow details for display in the expanded row
+                                const batchWorkflow = batch["Workflow"] || batch["Publication Workflow"] || "";
+                                const { jobTitle: batchJobTitle, stageAssignments: batchStageAssignments } = parseWorkflowAndStages(batchWorkflow);
+                                const displayWorkflowTitle = parsedWorkflows.find(w => 
+                                  w.id === batchJobTitle || w.title.trim().toLowerCase() === batchJobTitle.trim().toLowerCase()
+                                )?.title || batchJobTitle || "";
 
-                            return (
-                              <div 
-                                key={index} 
-                                className="bg-white border border-slate-150/60 rounded-xl shadow-3xs overflow-hidden hover:shadow-2xs transition-all duration-200"
-                              >
-                                {/* Clickable Header Item */}
-                                <button
-                                  onClick={() => setExpandedBatchIndex(isExpanded ? null : index)}
-                                  className="w-full text-left p-3 hover:bg-slate-50/50 active:bg-slate-100 flex flex-col gap-1.5 transition-all duration-150 cursor-pointer focus:outline-none"
-                                >
-                                  <div className="flex items-center justify-between w-full">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className={`text-[10.5px] font-bold tracking-wider flex items-center gap-1.5 ${isBatchRunning(batch) ? 'text-amber-700 bg-amber-50/70 border border-amber-200/50 px-1.5 py-0.5 rounded-md' : 'text-slate-800'}`} title={isBatchRunning(batch) ? "Active Running Batch" : undefined}>
-                                        Batch {batch["Batch Number"] || "N/A"}
-                                        {isBatchRunning(batch) && (
-                                          <span className="inline-flex items-center gap-0.5">
-                                            <AlertCircle className="w-3 h-3 text-amber-500 animate-pulse shrink-0" />
-                                            <span className="relative flex h-1 w-1">
-                                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                              <span className="relative inline-flex rounded-full h-1 w-1 bg-amber-500"></span>
-                                            </span>
-                                          </span>
-                                        )}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                      {batch["Student"] && (
-                                        <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-100/50">
-                                          {batch["Student"]} Students
-                                        </span>
-                                      )}
-                                      {isExpanded ? (
-                                        <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                      ) : (
-                                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                      )}
-                                    </div>
-                                  </div>
+                                const matchingWorkflowForDisplay = parsedWorkflows.find(w => 
+                                  w.id === batchJobTitle || w.title.trim().toLowerCase() === batchJobTitle.trim().toLowerCase()
+                                );
+                                
+                                let matchingStages: any[] = [];
+                                if (matchingWorkflowForDisplay && matchingWorkflowForDisplay.stages.length > 0) {
+                                  matchingStages = matchingWorkflowForDisplay.stages.map((stage, idx) => {
+                                    let name = stage.stageName || "Unnamed Stage";
+                                    if (!/^\d+\./.test(name)) {
+                                      name = `${idx + 1}. ${name}`;
+                                    }
+                                    return {
+                                      "ID": stage.id,
+                                      "Job Title": matchingWorkflowForDisplay.title,
+                                      "Workflow Stage": name,
+                                      "Key Responsibilities": stage.tasks.join(', '),
+                                      "Deliverables": stage.deliverables.join(', ')
+                                    };
+                                  });
+                                }
+                                
+                                // Resolve potential multiple instructors
+                                const instructorVal = batch["Instractor"] || batch["Instructor"];
+                                const instructorIds = instructorVal ? resolveNamesOrIdsToIds(String(instructorVal), employees || []) : [];
+                                const instructorEmployees = instructorIds.map(id => (employees || []).find(e => String(e['Employee ID'] || '').trim() === String(id).split('|')[0].trim() || String(e['Employee Name'] || '').trim().toLowerCase() === String(id).split('|')[0].trim().toLowerCase())).filter(Boolean);
+                                
+                                const getInstructorList = () => {
+                                  if (instructorEmployees.length > 0) return instructorEmployees;
+                                  if (!instructorVal || String(instructorVal).trim() === "") return [];
+                                  return String(instructorVal).split(',').map(name => ({
+                                    'Employee Name': name.trim(),
+                                    Designation: "External Expert"
+                                  }));
+                                };
+                                
+                                const instructorsToRender = getInstructorList();
 
-                                  <div className="flex items-center gap-1 text-[8.5px] text-slate-500 font-mono font-bold mt-0.5">
-                                    <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                                    <span>
-                                      {batch["Start Date"] ? formatToMmmDdYyyy(batch["Start Date"]) : "—"}
-                                      {" — "}
-                                      {batch["End Date"] ? formatToMmmDdYyyy(batch["End Date"]) : "—"}
-                                    </span>
-                                  </div>
-                                </button>
-
-                                {/* Expanded Instructor section */}
-                                <AnimatePresence initial={false}>
-                                  {isExpanded && (
-                                    <motion.div
-                                      initial={{ height: 0, opacity: 0 }}
-                                      animate={{ height: "auto", opacity: 1 }}
-                                      exit={{ height: 0, opacity: 0 }}
-                                      transition={{ duration: 0.15 }}
-                                      className="overflow-hidden border-t border-slate-100 bg-slate-50/30"
+                                return (
+                                  <React.Fragment key={index}>
+                                    {/* Main Row */}
+                                    <tr 
+                                      onClick={() => setExpandedBatchIndex(isExpanded ? null : index)}
+                                      className={`border-b border-slate-100 hover:bg-slate-50/60 cursor-pointer transition-all duration-150 ${isExpanded ? 'bg-teal-50/15' : ''}`}
                                     >
-                                      <div className="p-3 pt-2.5 space-y-2">
+                                      <td className="py-3 px-3 font-semibold text-slate-800">
                                         <div className="flex items-center gap-1">
-                                          <Users className="w-3 h-3 text-slate-400" />
-                                          <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Instructor List</span>
+                                          <span className={`${isBatchRunning(batch) ? 'text-amber-800 bg-amber-50/80 px-1.5 py-0.5 rounded border border-amber-200/50 font-bold' : 'text-slate-800'}`}>
+                                            {batch["Batch Number"] || "N/A"}
+                                          </span>
                                         </div>
-                                        <div className="space-y-1.5">
-                                          {instructorsToRender.map((emp: any, empIdx: number) => {
-                                            const photoUrl = getPhotoUrl(emp);
-                                            return (
-                                              <div 
-                                                key={empIdx} 
-                                                className="flex items-center gap-2 bg-white p-1.5 rounded-lg border border-slate-150/50 hover:border-slate-200 transition-colors"
-                                              >
-                                                <img 
-                                                  src={photoUrl} 
-                                                  className="w-5.5 h-5.5 rounded-full object-cover bg-slate-100 border border-slate-200/50 shrink-0"
-                                                  onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp['Employee Name'] || 'User'); }} 
-                                                  referrerPolicy="no-referrer"
-                                                />
-                                                <div className="flex flex-col min-w-0">
-                                                  <span className="text-[9.5px] text-slate-700 font-bold truncate leading-tight">
-                                                    {emp['Employee Name']}
-                                                  </span>
-                                                  <span className="text-[8px] text-slate-400 font-bold leading-none truncate mt-0.5">
-                                                    {emp.Designation || "External Expert"}
-                                                  </span>
-                                                </div>
-                                              </div>
-                                            );
-                                          })}
+                                      </td>
+                                      <td className="py-3 px-2 text-slate-600 font-medium font-mono">
+                                        {batch["Start Date"] ? formatToMmmDdYyyy(batch["Start Date"]) : "—"}
+                                      </td>
+                                      <td className="py-3 px-2 text-slate-600 font-medium font-mono">
+                                        {batch["End Date"] ? formatToMmmDdYyyy(batch["End Date"]) : "—"}
+                                      </td>
+                                      <td className="py-3 px-3 text-slate-600 font-bold text-right">
+                                        {batch["Student"] || "0"}
+                                      </td>
+                                    </tr>
 
-                                          {instructorsToRender.length === 0 && (
-                                            <div className="flex items-center gap-1.5 py-1 px-1.5 rounded-md border border-dashed border-slate-100 text-slate-400 bg-slate-50/20">
-                                              <div className="w-3.5 h-3.5 rounded-full border border-dashed border-slate-200 flex items-center justify-center shrink-0">
-                                                <span className="text-[7.5px] font-bold text-slate-300">?</span>
-                                              </div>
-                                              <span className="text-[8px] font-semibold italic text-slate-400/70">No Instructor assigned</span>
+                                    {/* Expanded Panel */}
+                                    {isExpanded && (
+                                      <tr className="bg-slate-50/40 border-b border-slate-100">
+                                        <td colSpan={4} className="p-3">
+                                          <div className="space-y-4">
+                                            {/* Instructor Horizontal Scroll View */}
+                                            <div className="space-y-1">
+                                              <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider block">Instructors</span>
+                                              
+                                              {instructorsToRender.length > 0 ? (
+                                                <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1 pt-0.5 scroll-smooth">
+                                                  {instructorsToRender.map((emp: any, empIdx: number) => {
+                                                    const photoUrl = getPhotoUrl(emp);
+                                                    return (
+                                                      <div 
+                                                        key={empIdx} 
+                                                        className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-150 shadow-3xs shrink-0 w-44"
+                                                      >
+                                                        <img 
+                                                          src={photoUrl} 
+                                                          className="w-7 h-7 rounded-full object-cover bg-slate-100 border border-slate-200 shrink-0"
+                                                          onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp['Employee Name'] || 'User'); }} 
+                                                          referrerPolicy="no-referrer"
+                                                        />
+                                                        <div className="flex flex-col min-w-0">
+                                                          <span className="text-[9.5px] text-slate-700 font-bold truncate leading-tight">
+                                                            {emp['Employee Name']}
+                                                          </span>
+                                                          <span className="text-[8px] text-slate-400 font-bold leading-none truncate mt-0.5">
+                                                            {emp.Designation || "External Expert"}
+                                                          </span>
+                                                        </div>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              ) : (
+                                                <div className="text-[8.5px] text-slate-400 italic py-1 pl-1">No Instructor assigned</div>
+                                              )}
                                             </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-                              </div>
-                            );
-                          })}
+
+                                            {/* Selected Workflow */}
+                                            <div className="pt-2 border-t border-slate-100">
+                                              <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider block mb-2">Selected Workflow</span>
+                                              {displayWorkflowTitle ? (
+                                                <div className="space-y-3">
+                                                  <div className="bg-white p-2.5 rounded-lg border border-slate-150 shadow-3xs flex flex-col gap-1">
+                                                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">Job Title / Workflow</span>
+                                                    <span className="text-[10px] font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                                      <Briefcase className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                                                      {displayWorkflowTitle}
+                                                    </span>
+                                                  </div>
+                                                  
+                                                  {matchingStages.length > 0 ? (
+                                                    <div className="relative pl-1.5 pt-1 space-y-3.5">
+                                                      {/* Vertical timeline line */}
+                                                      <div className="absolute left-[13px] top-[14px] bottom-3 w-0.5 bg-slate-150" />
+
+                                                      {matchingStages.map((stage, idx) => {
+                                                        const stageName = stage["Workflow Stage"] || "Unnamed Stage";
+                                                        const currentSelectedEmployeeIds = getStageAssignment(batchStageAssignments, stageName);
+                                                        
+                                                        return (
+                                                          <div key={idx} className="relative flex gap-3.5 items-start">
+                                                            {/* Timeline bullet */}
+                                                            <div className="relative shrink-0 z-10">
+                                                              <div className="w-5 h-5 rounded-full border border-teal-600 bg-white flex items-center justify-center font-mono text-[9px] font-bold text-teal-600 shadow-3xs">
+                                                                {idx + 1}
+                                                              </div>
+                                                            </div>
+
+                                                            {/* Step Content */}
+                                                            <div className="flex-1 min-w-0 bg-white border border-slate-150/70 p-2.5 rounded-xl shadow-3xs">
+                                                              <span className="text-[9.5px] font-bold text-slate-800 uppercase tracking-wider block">
+                                                                {stageName.replace(/^\d+\.\s*/, '')}
+                                                              </span>
+                                                              {currentSelectedEmployeeIds.length > 0 ? (
+                                                                <div className="mt-2 space-y-1.5">
+                                                                  {currentSelectedEmployeeIds.map((id) => {
+                                                                    const emp = (employees || []).find(e => String(e['Employee ID'] || '').trim() === String(id).split('|')[0].trim());
+                                                                    if (!emp) return null;
+                                                                    const designation = emp['Designation'] || emp['Administrative Designation'] || emp['Administrative'] || 'Employee';
+                                                                    return (
+                                                                      <div key={id} className="flex items-center gap-2 bg-slate-50/50 p-1.5 rounded-lg border border-slate-100" title={emp['Employee Name']}>
+                                                                        <img 
+                                                                          src={getPhotoUrl(emp)} 
+                                                                          alt={emp['Employee Name']}
+                                                                          className="w-5.5 h-5.5 rounded-full object-cover shrink-0 border border-slate-200/50"
+                                                                          onError={(e) => {
+                                                                            const target = e.target as HTMLImageElement;
+                                                                            target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp['Employee Name'] || 'User');
+                                                                          }}
+                                                                        />
+                                                                        <div className="flex-1 min-w-0">
+                                                                          <span className="text-[8.5px] font-bold text-slate-700 block truncate leading-snug">
+                                                                            {emp['Employee Name']}
+                                                                          </span>
+                                                                          <span className="text-[7.5px] font-medium text-slate-400 block truncate leading-tight mt-0.5">
+                                                                            {designation}
+                                                                          </span>
+                                                                        </div>
+                                                                      </div>
+                                                                    );
+                                                                  })}
+                                                                </div>
+                                                              ) : (
+                                                                <span className="text-[8px] text-slate-400 italic block mt-1">No employee assigned</span>
+                                                              )}
+                                                            </div>
+                                                          </div>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  ) : null}
+                                                </div>
+                                              ) : (
+                                                <div className="text-[8.5px] text-slate-400 italic">No workflow assigned to this batch</div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </React.Fragment>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
                       );
                     })()}
