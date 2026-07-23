@@ -436,7 +436,7 @@ export default function MCCourseDetails({
   const courseInfo = [
     { key: 'Mode', icon: Globe, label: 'Mode', value: editedData?.['Mode'] || 'Hybrid' },
     { key: 'Duration', icon: Clock, label: 'Duration', value: editedData?.['Duration'] || '30' },
-    { key: 'No. of Class', icon: Calendar, label: 'No. of Class', value: editedData?.['No. of Class'] || '10' },
+    { key: 'Class', icon: Calendar, label: 'Class', value: editedData?.['Class'] || editedData?.['No. of Class'] || '10' },
     { key: 'Course Fee', icon: TakaIcon, label: 'Course Fee', value: editedData?.['Course Fee'] || '2000' },
     { key: 'Student Size', icon: Users, label: 'Student Size', value: editedData?.['Student Size'] || '20-25' },
     { key: 'Status', icon: CheckCircle, label: 'Status', value: editedData?.['Status'] || 'On Hold' },
@@ -843,16 +843,16 @@ export default function MCCourseDetails({
                                         <div className="flex items-center gap-1.5">
                                           <input 
                                             type="text" 
-                                            value={editedData?.['No. of Class'] || ''} 
-                                            onChange={(e) => handleInputChange('No. of Class', e.target.value)}
+                                            value={editedData?.['Class'] ?? editedData?.['No. of Class'] ?? ''} 
+                                            onChange={(e) => handleInputChange(editedData?.['Class'] !== undefined || !('No. of Class' in (data || {})) ? 'Class' : 'No. of Class', e.target.value)}
                                             className="bg-white/10 border border-white/20 rounded px-1 py-0.5 text-[12px] font-medium uppercase outline-none text-white w-12"
                                           />
-                                          {editedData?.['No. of Class'] !== data?.['No. of Class'] && (
+                                          {(editedData?.['Class'] ?? editedData?.['No. of Class']) !== (data?.['Class'] ?? data?.['No. of Class']) && (
                                             <div className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
                                           )}
                                         </div>
                                       ) : (
-                                        <span className="text-[12px] font-medium uppercase">{editedData?.['No. of Class'] || data?.['No. of Class'] || '—'}</span>
+                                        <span className="text-[12px] font-medium uppercase">{editedData?.['Class'] || editedData?.['No. of Class'] || data?.['Class'] || data?.['No. of Class'] || '—'}</span>
                                       )}
                                     </div>
                                   </div>

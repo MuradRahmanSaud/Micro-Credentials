@@ -144,7 +144,7 @@ export default function App() {
     gid: "1120624852",
     localStorageKey: "course_data",
     fallbackHeaders: [
-      "Course Code", "Course Title", "Banner", "Mode", "Duration", "No. of Class",
+      "Course Code", "Course Title", "Banner", "Mode", "Duration", "Class",
       "Course Fee", "Student Size", "Status", "Workflow",
       "Industry Expert", "Batches", "Enrolled", "Discount", "Expenses",
       "Remarks"
@@ -216,9 +216,21 @@ export default function App() {
   }, [settingsData, employeeGid, settingsGid, mcBatchGid]);
 
   const courseTableHeaders = useMemo(() => {
-    const hiddenHeaders = ["Banner", "Received By", "Gross Revenue", "Net Revenue", "Remarks", "Proposed By", "Developed By", "Reviewed By", "Approved By", "Published By"];
-    // Explicitly filter out "Status", "Batches", "Gross Revenue", "Net Revenue", and "Net Profit" from original headers to avoid duplicates when we re-add them virtually
-    const baseHeaders = courseHeaders.filter(h => !hiddenHeaders.includes(h) && h !== "Status" && h !== "Batches" && h !== "Gross Revenue" && h !== "Net Revenue" && h !== "Net Profit" && h !== "Profit %");
+    const hiddenHeaders = [
+      "Banner", "Received By", "Gross Revenue", "Net Revenue", "Remarks", 
+      "Proposed By", "Developed By", "Reviewed By", "Approved By", "Published By",
+      "Workflow", "Discount", "Expenses", "Net Profit", "Profit %", "Industry Expert", "Industry Expart"
+    ];
+    // Explicitly filter out "Status", "Batches", "Gross Revenue", "Net Revenue", "Net Profit", "Profit %" and hidden headers to avoid duplicates
+    const baseHeaders = courseHeaders.filter(h => 
+      !hiddenHeaders.includes(h) && 
+      h !== "Status" && 
+      h !== "Batches" && 
+      h !== "Gross Revenue" && 
+      h !== "Net Revenue" && 
+      h !== "Net Profit" && 
+      h !== "Profit %"
+    );
     
     // Find Mode index and insert "Status" after it
     const modeIdx = baseHeaders.findIndex(h => h.toLowerCase() === "mode");
@@ -231,7 +243,7 @@ export default function App() {
       updatedHeaders.push("Status");
     }
 
-    // Insert Batches before Enrolled or after Industry Expert
+    // Insert Batches before Enrolled or Enrollments
     const enrolledIdx = updatedHeaders.indexOf("Enrolled");
     const enrolledActualIdx = enrolledIdx !== -1 ? enrolledIdx : updatedHeaders.indexOf("Enrollments");
     
@@ -241,23 +253,6 @@ export default function App() {
       updatedHeaders.push("Batches");
     }
 
-    // Ensure Enrolled is before Course Fee
-    const newEnrolledIdx = updatedHeaders.indexOf("Enrolled");
-    const feeIdx = updatedHeaders.indexOf("Course Fee");
-    if (newEnrolledIdx !== -1 && feeIdx !== -1 && newEnrolledIdx > feeIdx) {
-      const [enrolledHeader] = updatedHeaders.splice(newEnrolledIdx, 1);
-      const newFeeIdx = updatedHeaders.indexOf("Course Fee");
-      updatedHeaders.splice(newFeeIdx, 0, enrolledHeader);
-    }
-
-    // Insert Net Profit and Profit % after Expenses
-    const expensesIdx = updatedHeaders.findIndex(h => h === "Expenses");
-    if (expensesIdx !== -1) {
-      updatedHeaders.splice(expensesIdx + 1, 0, "Net Profit", "Profit %");
-    } else {
-      updatedHeaders.push("Net Profit", "Profit %");
-    }
-    
     return updatedHeaders;
   }, [courseHeaders]);
 

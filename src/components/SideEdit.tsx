@@ -273,7 +273,7 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
               employees={employees}
             />
           </div>
-        ) : ["Duration", "No. of Class", "Student Size", "Batches", "Enrolled", "Enrollments", "Student", "Batch Number", "Discount", "Expenses", "Net Profit"].includes(header) ? (
+        ) : ["Duration", "Class", "No. of Class", "Student Size", "Batches", "Enrolled", "Enrollments", "Student", "Batch Number", "Discount", "Expenses", "Net Profit"].includes(header) ? (
           <input
             type="number"
             value={formData[header] === undefined || formData[header] === "—" ? "" : formData[header]}
@@ -337,7 +337,8 @@ export default function SideEdit({ isOpen, onClose, onSave, initialData, headers
   let infoHeaders = headers.filter(h => !workflowHeaders.includes(h) && !accountingHeaders.includes(h) && !["Banner", "Course Title", "Course Code", "Mode", "Workflow"].includes(h));
 
   if (title === "Edit Course" || title === "Add New Course") {
-    infoHeaders = ["Duration", "No. of Class", "Student Size"];
+    const classHeader = headers.find(h => h === "Class" || h === "No. of Class") || "Class";
+    infoHeaders = ["Duration", classHeader, "Student Size"];
   }
 
   return (

@@ -693,7 +693,7 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                 {activeTab === "info" && (() => {
                   const standardKeys = [
                     "Course Title", "Course Code", "Banner", "Status", "Duration", 
-                    "No. of Class", "Student Size", "Batches", "Enrolled", "Enrollments", 
+                    "Class", "No. of Class", "Student Size", "Batches", "Enrolled", "Enrollments", 
                     "Discount", "Expenses", "Remarks", "Received By", 
                     "Gross Revenue", "Net Revenue", "Net Profit", "Profit %", "Course Fee", 
                     "id", "rowId", "rowIndex"
@@ -713,7 +713,7 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
                         <div className="grid grid-cols-1 gap-2.5">
                           {[
                             { key: "Duration", label: "Duration", value: data["Duration"] ? `${data["Duration"]} Days` : "—", icon: Clock, color: "text-blue-500 bg-blue-50/50 border-blue-100/60" },
-                            { key: "No. of Class", label: "No. of Class", value: data["No. of Class"] ? `${data["No. of Class"]} Classes` : "—", icon: Calendar, color: "text-indigo-500 bg-indigo-50/50 border-indigo-100/60" },
+                            { key: "Class", label: "Class", value: (data["Class"] || data["No. of Class"]) ? `${data["Class"] || data["No. of Class"]} Classes` : "—", icon: Calendar, color: "text-indigo-500 bg-indigo-50/50 border-indigo-100/60" },
                             { key: "Student Size", label: "Student Size", value: data["Student Size"] ? `${data["Student Size"]} Students` : "—", icon: Users, color: "text-teal-500 bg-teal-50/50 border-teal-100/60" },
                             { key: "Status", label: "Current Status", value: data["Status"] || "—", icon: Award, color: "text-emerald-500 bg-emerald-50/50 border-emerald-100/60" },
                           ].map((item, idx) => {

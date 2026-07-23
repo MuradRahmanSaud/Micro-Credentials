@@ -674,7 +674,7 @@ export default function Table({
                       header.toLowerCase().includes("mobile") ? "w-28" : 
                       header.toLowerCase() === "date" ? "w-24" :
                       isNormal ? "w-auto" : "w-min max-w-[300px] truncate",
-                      ["employee id", "mobile", "ip-ext", "status", "mode", "duration", "no. of class", "course fee", "student size", "enrolled", "discount", "expenses", "net profit", "batches", "profit %", "date", "action", "assigned date", "deadline"].includes(header.toLowerCase()) && "text-center",
+                      ["employee id", "mobile", "ip-ext", "status", "mode", "duration", "class", "no. of class", "course fee", "student size", "enrolled", "discount", "expenses", "net profit", "batches", "profit %", "date", "action", "assigned date", "deadline"].includes(header.toLowerCase()) && "text-center",
                       actualIdx <= effectiveFrozenIndex && "bg-gray-50",
                       columnStyles?.[header]
                     )}
@@ -810,7 +810,7 @@ export default function Table({
                           "px-2 py-1 border-r border-gray-100 last:border-r-0 group-hover:text-gray-900",
                           !isNormalCell && "whitespace-nowrap",
                           (headerLower === "employee name" || isNormalCell) ? "overflow-visible relative" : "overflow-hidden text-ellipsis",
-                          ["employee id", "mobile", "ip-ext", "status", "mode", "duration", "no. of class", "course fee", "student size", "batch number", "enrolled", "discount", "expenses", "net profit", "batches", "profit %", "date", "action", "assigned date", "deadline"].includes(headerLower) && "text-center",
+                          ["employee id", "mobile", "ip-ext", "status", "mode", "duration", "class", "no. of class", "course fee", "student size", "batch number", "enrolled", "discount", "expenses", "net profit", "batches", "profit %", "date", "action", "assigned date", "deadline"].includes(headerLower) && "text-center",
                           actualIdx <= effectiveFrozenIndex ? (isActiveRow?.(row) ? "bg-teal-100" : (isRowHovered ? "bg-teal-100/60" : "bg-white group-hover:bg-teal-100")) : "",
                           columnStyles?.[header]
                         )}
@@ -822,7 +822,7 @@ export default function Table({
                             {renderedCustomCell !== undefined ? renderedCustomCell : formatCellValue(header, row[header])}
                           </div>
                         ) : (
-                          <div className={cn("flex items-center gap-1.5", ["employee id", "mobile", "ip-ext", "status", "mode", "duration", "no. of class", "course fee", "student size", "batch number", "enrolled", "discount", "expenses", "net profit", "batches", "profit %", "assigned date", "deadline"].includes(headerLower) ? "justify-center w-full" : "")}>
+                          <div className={cn("flex items-center gap-1.5", ["employee id", "mobile", "ip-ext", "status", "mode", "duration", "class", "no. of class", "course fee", "student size", "batch number", "enrolled", "discount", "expenses", "net profit", "batches", "profit %", "assigned date", "deadline"].includes(headerLower) ? "justify-center w-full" : "")}>
                             {renderedCustomCell !== undefined ? (
                               renderedCustomCell
                             ) : (headerLower === "employee" || headerLower === "employee name") && row["Designation"] ? (
