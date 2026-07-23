@@ -67,6 +67,13 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
     }).filter(item => item.title.trim() !== "");
   }, [workflowData]);
   
+  const instructorVal = batch ? (batch["Instractor"] || batch["Instructor"]) : "";
+  
+  const instructorIds = useMemo(() => {
+    if (!instructorVal || String(instructorVal).trim() === "") return [];
+    return resolveNamesOrIdsToIds(String(instructorVal), employees || []).map(String);
+  }, [instructorVal, employees]);
+  
   if (!batch) {
     return (
       <div className="h-full flex-1 w-full flex items-center justify-center text-slate-400 italic text-sm">
@@ -74,8 +81,6 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
       </div>
     );
   }
-
-  const instructorVal = batch["Instractor"] || batch["Instructor"];
   
   const getInstructorList = () => {
     if (!instructorVal || String(instructorVal).trim() === "") return [];
@@ -127,11 +132,6 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
   };
   
   const instructorsToRender = getInstructorList();
-  
-  const instructorIds = useMemo(() => {
-    if (!instructorVal || String(instructorVal).trim() === "") return [];
-    return resolveNamesOrIdsToIds(String(instructorVal), employees || []).map(String);
-  }, [instructorVal, employees]);
   
   const renderWorkflow = () => {
     const courseWorkflow = batch["Workflow"] || batch["Publication Workflow"] || "";
