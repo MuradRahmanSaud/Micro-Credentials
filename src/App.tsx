@@ -19,7 +19,7 @@ import DocumentsPanel from "./components/DocumentsPanel";
 import WorkflowView from "./components/WorkflowView";
 import axios from "axios";
 import { motion, AnimatePresence } from "motion/react";
-import { UserCheck, Eye, LayoutDashboard, BookOpen, Layers, X, Briefcase, FileText, GitMerge, Activity } from "lucide-react";
+import { UserCheck, Eye, LayoutDashboard, BookOpen, Layers, X, Briefcase, FileText, GitMerge, Activity, Users } from "lucide-react";
 import { useGoogleSheet } from "./hooks/useGoogleSheet";
 import { getCourseStatusName } from "./lib/utils";
 import ActivityPanel from "./components/ActivityPanel";
@@ -615,20 +615,7 @@ export default function App() {
                 transition={{ duration: 0.15 }}
                 className="flex-1 min-h-0"
               >
-                {activeTab === "employees" ? (
-                  <div className="flex w-full h-full bg-white rounded border border-gray-200 overflow-hidden">
-                    <Table 
-                      data={data}
-                      headers={headers}
-                      isLoading={isLoading}
-                      onSave={handleSave}
-                      onDelete={handleDelete}
-                      onRefresh={() => fetchData(true)}
-                      FormPanel={EmployeePanel}
-                      entityName="Employee"
-                    />
-                  </div>
-                ) : activeTab === "micro-credentials" ? (
+                {activeTab === "micro-credentials" ? (
                   <div className="flex flex-col w-full h-full bg-white rounded border border-gray-200 overflow-hidden relative">
                     {/* Sub-tabs bar */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-2.5 bg-gray-50/50 border-b border-gray-100 shrink-0 gap-2">
@@ -683,6 +670,23 @@ export default function App() {
                           )}
                           <Layers className="w-3.5 h-3.5" />
                           <span className={mcSubTab === "batch" ? "text-teal-800" : ""}>Batch</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setMcSubTab("employees");
+                            setIsCourseDetailsOpen(false);
+                          }}
+                          className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider cursor-pointer text-gray-500 hover:text-gray-800 transition-colors duration-200 select-none"
+                        >
+                          {mcSubTab === "employees" && (
+                            <motion.span
+                              layoutId="activeSubTab"
+                              className="absolute inset-0 bg-white rounded-md shadow-sm border border-gray-100 -z-10"
+                              transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                            />
+                          )}
+                          <Users className="w-3.5 h-3.5" />
+                          <span className={mcSubTab === "employees" ? "text-teal-800" : ""}>Employee</span>
                         </button>
                         <button
                           onClick={() => {
@@ -843,6 +847,19 @@ export default function App() {
                                 extraFormProps={{
                                   workflowData: workflowData
                                 }}
+                              />
+                            </div>
+                          ) : mcSubTab === "employees" ? (
+                            <div className="flex-1 overflow-hidden relative">
+                              <Table 
+                                data={data}
+                                headers={headers}
+                                isLoading={isLoading}
+                                onSave={handleSave}
+                                onDelete={handleDelete}
+                                onRefresh={() => fetchData(true)}
+                                FormPanel={EmployeePanel}
+                                entityName="Employee"
                               />
                             </div>
                           ) : mcSubTab === "representatives" ? (

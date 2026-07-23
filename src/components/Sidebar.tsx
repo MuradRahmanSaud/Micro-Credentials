@@ -7,7 +7,6 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { id: "employees", label: "Employee", icon: Users },
   { id: "micro-credentials", label: "Micro-Credentials", icon: Award },
   { id: "settings", label: "Settings", icon: Settings },
   { id: "about", label: "About", icon: Info },

@@ -22,7 +22,12 @@ import {
   ArrowRight,
   Info,
   FileCode,
-  FileUp
+  FileUp,
+  Users,
+  Layers,
+  FileText,
+  GitMerge,
+  Table
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../lib/utils";
@@ -62,6 +67,9 @@ export default function SettingsTab({
     "Settings GID": "",
     "Employee GID": "",
     "MC Batch GID": "",
+    "Course GID": "",
+    "Documents GID": "",
+    "Workflow GID": "",
     "Drive Location": "",
     "File Location": "",
     "Script": "",
@@ -87,6 +95,9 @@ export default function SettingsTab({
         "Settings GID": getSettingValue("Settings GID", getSettingValue("GID", "1972051572")),
         "Employee GID": getSettingValue("Employee GID", "0"),
         "MC Batch GID": getSettingValue("MC Batch GID", "1111164355"),
+        "Course GID": getSettingValue("Course GID", "1120624852"),
+        "Documents GID": getSettingValue("Documents GID", "732376789"),
+        "Workflow GID": getSettingValue("Workflow GID", "1686458334"),
         "Drive Location": getSettingValue("Drive Location", ""),
         "File Location": getSettingValue("File Location", "Main Folder"),
         "Script": getSettingValue("Script", getSettingValue("Script name", "Script")),
@@ -104,6 +115,9 @@ export default function SettingsTab({
         { Title: "Settings GID", Content: dbForm["Settings GID"].trim() },
         { Title: "Employee GID", Content: dbForm["Employee GID"].trim() },
         { Title: "MC Batch GID", Content: dbForm["MC Batch GID"].trim() },
+        { Title: "Course GID", Content: dbForm["Course GID"].trim() },
+        { Title: "Documents GID", Content: dbForm["Documents GID"].trim() },
+        { Title: "Workflow GID", Content: dbForm["Workflow GID"].trim() },
         { Title: "Drive Location", Content: dbForm["Drive Location"].trim() },
         { Title: "File Location", Content: dbForm["File Location"].trim() },
         { Title: "Script", Content: dbForm["Script"].trim() },
@@ -455,6 +469,69 @@ export default function SettingsTab({
                         </td>
                       </tr>
 
+                      {/* Course GID Row */}
+                      <tr>
+                        <td className="px-3 py-2 font-semibold bg-gray-50/50 border-r border-gray-100 flex items-center gap-1.5">
+                          <Fingerprint className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          Course GID
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={dbForm["Course GID"]}
+                              onChange={(e) => setDbForm({ ...dbForm, "Course GID": e.target.value })}
+                              className="w-full border border-gray-200 focus:border-teal-500 outline-none rounded px-2 py-1 text-xs text-gray-800 bg-white font-mono text-[10px]"
+                              placeholder="e.g. 1120624852"
+                            />
+                          ) : (
+                            <span className="font-mono text-[10px] text-gray-900 font-semibold">{dbForm["Course GID"] || "1120624852"}</span>
+                          )}
+                        </td>
+                      </tr>
+
+                      {/* Documents GID Row */}
+                      <tr>
+                        <td className="px-3 py-2 font-semibold bg-gray-50/50 border-r border-gray-100 flex items-center gap-1.5">
+                          <Fingerprint className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          Documents GID
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={dbForm["Documents GID"]}
+                              onChange={(e) => setDbForm({ ...dbForm, "Documents GID": e.target.value })}
+                              className="w-full border border-gray-200 focus:border-teal-500 outline-none rounded px-2 py-1 text-xs text-gray-800 bg-white font-mono text-[10px]"
+                              placeholder="e.g. 732376789"
+                            />
+                          ) : (
+                            <span className="font-mono text-[10px] text-gray-900 font-semibold">{dbForm["Documents GID"] || "732376789"}</span>
+                          )}
+                        </td>
+                      </tr>
+
+                      {/* Workflow GID Row */}
+                      <tr>
+                        <td className="px-3 py-2 font-semibold bg-gray-50/50 border-r border-gray-100 flex items-center gap-1.5">
+                          <Fingerprint className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          Workflow GID
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={dbForm["Workflow GID"]}
+                              onChange={(e) => setDbForm({ ...dbForm, "Workflow GID": e.target.value })}
+                              className="w-full border border-gray-200 focus:border-teal-500 outline-none rounded px-2 py-1 text-xs text-gray-800 bg-white font-mono text-[10px]"
+                              placeholder="e.g. 1686458334"
+                            />
+                          ) : (
+                            <span className="font-mono text-[10px] text-gray-900 font-semibold">{dbForm["Workflow GID"] || "1686458334"}</span>
+                          )}
+                        </td>
+                      </tr>
+
                       {/* Drive Location Row */}
                       <tr>
                         <td className="px-3 py-2 font-semibold bg-gray-50/50 border-r border-gray-100 flex items-center gap-1.5">
@@ -626,6 +703,9 @@ export default function SettingsTab({
                           "Settings GID": getSettingValue("Settings GID", getSettingValue("GID", "1972051572")),
                           "Employee GID": getSettingValue("Employee GID", "0"),
                           "MC Batch GID": getSettingValue("MC Batch GID", "1111164355"),
+                          "Course GID": getSettingValue("Course GID", "1120624852"),
+                          "Documents GID": getSettingValue("Documents GID", "732376789"),
+                          "Workflow GID": getSettingValue("Workflow GID", "1686458334"),
                           "Drive Location": getSettingValue("Drive Location", ""),
                           "File Location": getSettingValue("File Location", "Main Folder"),
                           "Script": getSettingValue("Script", getSettingValue("Script name", "Script")),
@@ -670,6 +750,68 @@ export default function SettingsTab({
                     Edit Settings
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* Google Sheets Tabs Overview Card */}
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col h-fit">
+              <div className="px-4 py-2 bg-teal-900 text-white flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <Table className="w-4 h-4 text-teal-300" />
+                  <div>
+                    <h3 className="text-xs font-bold tracking-wider uppercase">Application Google Sheets</h3>
+                    <p className="text-[9px] text-teal-200/80 font-mono">DIRECT LINKS TO ALL GOOGLE SHEET TABS</p>
+                  </div>
+                </div>
+                <span className="text-[9px] bg-teal-800 px-2 py-0.5 rounded text-teal-200 font-bold font-mono">
+                  6 Sheets Connected
+                </span>
+              </div>
+
+              <div className="p-3 space-y-2 text-xs">
+                {[
+                  { title: "Employee Directory", key: "Employee GID", gid: dbForm["Employee GID"] || "0", icon: Users, color: "text-blue-600 bg-blue-50 border-blue-100", desc: "Workforce records, designation, email, mobile & group tags" },
+                  { title: "Settings & Configuration", key: "Settings GID", gid: dbForm["Settings GID"] || "1972051572", icon: Database, color: "text-purple-600 bg-purple-50 border-purple-100", desc: "Global parameters, organization profile & GID mapping" },
+                  { title: "Course List", key: "Course GID", gid: dbForm["Course GID"] || "1120624852", icon: BookOpen, color: "text-emerald-600 bg-emerald-50 border-emerald-100", desc: "Micro-credentials courses, codes, pricing & workflow stages" },
+                  { title: "MC Batch Records", key: "MC Batch GID", gid: dbForm["MC Batch GID"] || "1111164355", icon: Layers, color: "text-amber-600 bg-amber-50 border-amber-100", desc: "Batch schedules, enrollment capacity & instructor names" },
+                  { title: "Documents Repository", key: "Documents GID", gid: dbForm["Documents GID"] || "732376789", icon: FileText, color: "text-rose-600 bg-rose-50 border-rose-100", desc: "Uploaded document logs, Drive file links & verification tags" },
+                  { title: "Workflow Matrix", key: "Workflow GID", gid: dbForm["Workflow GID"] || "1686458334", icon: GitMerge, color: "text-cyan-600 bg-cyan-50 border-cyan-100", desc: "Workflow stages, milestone titles & approval steps" }
+                ].map((sheet) => {
+                  const Icon = sheet.icon;
+                  const baseLink = dbForm["Google Sheet Link"] || "https://docs.google.com/spreadsheets/d/1zpDWjuTLdSIdZ8GCICEo6EFs962kAkBk1TpIPDvmZwc/edit";
+                  const cleanBase = baseLink.split("#")[0];
+                  const directUrl = `${cleanBase}#gid=${sheet.gid}`;
+
+                  return (
+                    <div key={sheet.key} className="flex items-center justify-between p-2.5 bg-gray-50/70 hover:bg-gray-50 rounded border border-gray-150 transition-colors gap-2">
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <div className={cn("p-1.5 rounded border shrink-0 mt-0.5", sheet.color)}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-gray-900 text-xs truncate">{sheet.title}</span>
+                            <span className="font-mono text-[9px] px-1.5 py-0.2 bg-gray-200/70 text-gray-700 rounded font-semibold shrink-0">
+                              GID: {sheet.gid}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-gray-500 truncate mt-0.5">{sheet.desc}</p>
+                        </div>
+                      </div>
+
+                      <a
+                        href={directUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 bg-white hover:bg-teal-50 text-teal-700 hover:text-teal-900 border border-gray-200 hover:border-teal-300 rounded text-[10px] font-bold transition-all shrink-0 shadow-sm"
+                        title={`Open ${sheet.title} tab in Google Sheets`}
+                      >
+                        <span>Open Tab</span>
+                        <ExternalLink className="w-3 h-3 text-teal-600" />
+                      </a>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -750,6 +892,34 @@ export default function SettingsTab({
                       <span className="font-semibold text-slate-800 text-[11px] block font-mono">Employee GID</span>
                       <p className="text-[10px] text-gray-500 mt-0.5">
                         The Sheet Tab GID holding the primary workforce profiles, designations, photo links, and qualification metrics. Typically the first sheet, mapped as GID <code>0</code>.
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 p-2 rounded border border-gray-100">
+                      <span className="font-semibold text-slate-800 text-[11px] block font-mono">MC Batch GID</span>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        The Sheet Tab GID storing Micro-Credential batch schedules, enrollment quotas, start/end dates, and instructor details. (Default: <code>1111164355</code>).
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 p-2 rounded border border-gray-100">
+                      <span className="font-semibold text-slate-800 text-[11px] block font-mono">Course GID</span>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        The Sheet Tab GID listing course codes, course titles, pricing, duration, and publishing workflow states. (Default: <code>1120624852</code>).
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 p-2 rounded border border-gray-100">
+                      <span className="font-semibold text-slate-800 text-[11px] block font-mono">Documents GID</span>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        The Sheet Tab GID tracking document upload logs, drive file links, file types, and verification statuses. (Default: <code>732376789</code>).
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 p-2 rounded border border-gray-100">
+                      <span className="font-semibold text-slate-800 text-[11px] block font-mono">Workflow GID</span>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        The Sheet Tab GID defining approval matrix steps, milestone titles, and workflow timeline configurations. (Default: <code>1686458334</code>).
                       </p>
                     </div>
 

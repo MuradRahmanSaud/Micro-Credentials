@@ -137,9 +137,11 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
     return employees.find(e => String(e['Employee ID'] || '').trim() === String(val).trim() || String(e['Employee Name'] || '').trim().toLowerCase() === String(val).trim().toLowerCase());
   };
 
+  const safeData = data || {};
+
   return (
     <AnimatePresence>
-      {isOpen && (
+      {isOpen && data && (
         <motion.div
           initial={{ x: "100%", opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
@@ -151,9 +153,9 @@ export default function SideView({ isOpen, onClose, onEdit, data, headers, title
             <div className="flex flex-col shrink-0 border-b border-gray-100">
               {/* Top Banner Image with overlay action buttons, title, and code */}
               <div className="relative w-full h-44 bg-teal-900 shrink-0 overflow-hidden">
-                {data["Banner"] ? (
+                {safeData["Banner"] ? (
                   <img
-                    src={getBannerUrl(data["Banner"])}
+                    src={getBannerUrl(safeData["Banner"])}
                     alt="Course Banner"
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
