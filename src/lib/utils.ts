@@ -172,9 +172,143 @@ export function isBatchRunning(batch: any): boolean {
   return today <= endDate;
 }
 
-export function getCourseStatusName(course: any): string {
+export function getCourseStatusName(
+  course: any,
+  documentsData: any[] = [],
+  workflowData: any[] = []
+): string {
   if (!course) return "N/A";
-  return course["Status"] || "N/A";
+
+  const workflowStr = course["Workflow"] || course["Publication Workflow"] || "";
+  const rawStatus = String(course["Status"] || "").trim();
+
+  let totalStages = 10;
+  let stageList: Array<{ id: string; name: string; deliverables: string[] }> = [];
+
+  if (workflowStr) {
+    const { jobTitle, stageAssignments } = parseWorkflowAndStages(workflowStr);
+    
+    const workflowDef = workflowData.find(w => {
+      const parsed = parseWorkflowTitle(w["Workflow Title"], w.id);
+      return parsed.id === jobTitle || parsed.title.trim().toLowerCase() === jobTitle.trim().toLowerCase();
+    });
+
+    const { stages: structuredStages } = workflowDef 
+      ? parseWorkflowTitle(workflowDef["Workflow Title"], workflowDef.id) 
+      : parseWorkflowTitle(workflowStr);
+
+    if (structuredStages && structuredStages.length > 0) {
+      totalStages = structuredStages.length;
+      stageList = structuredStages.map(s => ({
+        id: s.id,
+        name: s.stageName.replace(/^\d+\.\s*/, '').trim(),
+        deliverables: s.deliverables || []
+      }));
+    } else {
+      const assignedKeys = Object.keys(stageAssignments);
+      if (assignedKeys.length > 0) {
+        totalStages = assignedKeys.length;
+        stageList = assignedKeys.map(k => ({
+          id: k,
+          name: k.replace(/^\d+\.\s*/, '').trim(),
+          deliverables: []
+        }));
+      }
+    }
+  }
+
+  if (totalStages <= 0) totalStages = 10;
+
+  const courseCode = String(course["Course Code"] || "").trim().toUpperCase();
+  const courseTitle = String(course["Course Title"] || course["Name"] || "").trim().toUpperCase();
+
+  // Count Verified stages from uploaded/reviewed documents
+  let verifiedStagesCount = 0;
+
+  if (stageList.length > 0) {
+    stageList.forEach(stage => {
+      const normStage = stage.name.toUpperCase();
+      const stageDelivs = stage.deliverables.map(d => d.trim().toUpperCase()).filter(Boolean);
+
+      const isStageVerified = documentsData.some(doc => {
+        const tag = String(doc["Tag"] || "").toUpperCase();
+        const status = String(doc["Status"] || "").toUpperCase();
+        const title = String(doc["Documents Title"] || doc["Title"] || "").toUpperCase();
+
+        const isVerified = 
+          tag.includes("VERIFIED") || 
+          tag.includes("JOB DONE") || 
+          tag.includes("APPROVED") || 
+          status.includes("VERIFIED") || 
+          status.includes("JOB DONE") || 
+          status.includes("APPROVED");
+
+        if (!isVerified) return false;
+
+        // Check course code / title match
+        const docCourseCode = String(doc["Course Code"] || "").toUpperCase();
+        const docCourseName = String(doc["Course Name"] || "").toUpperCase();
+        const matchesCourse = 
+          !courseCode || 
+          docCourseCode === courseCode || 
+          tag.includes(courseCode) || 
+          title.includes(courseCode) ||
+          (courseTitle && (docCourseName.includes(courseTitle) || tag.includes(courseTitle)));
+
+        if (!matchesCourse) return false;
+
+        // Check stage name or deliverable match
+        const matchesStage = 
+          (normStage && (tag.includes(normStage) || title.includes(normStage))) ||
+          stageDelivs.some(d => title.includes(d) || tag.includes(d));
+
+        return matchesStage;
+      });
+
+      if (isStageVerified) {
+        verifiedStagesCount++;
+      }
+    });
+  } else {
+    // If no stage list parsed, count unique verified stage documents for this course
+    const verifiedDocs = documentsData.filter(doc => {
+      const tag = String(doc["Tag"] || "").toUpperCase();
+      const status = String(doc["Status"] || "").toUpperCase();
+      const title = String(doc["Documents Title"] || doc["Title"] || "").toUpperCase();
+
+      const isVerified = 
+        tag.includes("VERIFIED") || 
+        tag.includes("JOB DONE") || 
+        tag.includes("APPROVED") || 
+        status.includes("VERIFIED") || 
+        status.includes("JOB DONE") || 
+        status.includes("APPROVED");
+
+      if (!isVerified) return false;
+
+      const docCourseCode = String(doc["Course Code"] || "").toUpperCase();
+      const docCourseName = String(doc["Course Name"] || "").toUpperCase();
+      return !courseCode || docCourseCode === courseCode || tag.includes(courseCode) || title.includes(courseCode) || (courseTitle && (docCourseName.includes(courseTitle) || tag.includes(courseTitle)));
+    });
+
+    verifiedStagesCount = verifiedDocs.length;
+  }
+
+  if (verifiedStagesCount > 0) {
+    const completePercentage = Math.min(100, Math.round((verifiedStagesCount / totalStages) * 100));
+    return `${completePercentage}%`;
+  }
+
+  // Fallback if no verified documents yet
+  if (rawStatus.endsWith("%")) {
+    const parsedVal = parseInt(rawStatus, 10);
+    if (!isNaN(parsedVal)) {
+      return `${parsedVal}%`;
+    }
+  }
+
+  // If 0 stages verified so far, 0% complete
+  return "0%";
 }
 
 export function parseWorkflowAndStages(workflowStr: string) {

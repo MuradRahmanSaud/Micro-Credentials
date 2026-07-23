@@ -24,6 +24,16 @@ const getPhotoUrl = (emp: any) => {
   return cleanUrl;
 };
 
+const toInputDateValue = (dateStr: any) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export interface BatchDetailsViewProps {
   batch: any;
   employees?: any[];
@@ -117,6 +127,11 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
   };
   
   const instructorsToRender = getInstructorList();
+  
+  const instructorIds = useMemo(() => {
+    if (!instructorVal || String(instructorVal).trim() === "") return [];
+    return resolveNamesOrIdsToIds(String(instructorVal), employees || []).map(String);
+  }, [instructorVal, employees]);
   
   const renderWorkflow = () => {
     const courseWorkflow = batch["Workflow"] || batch["Publication Workflow"] || "";
@@ -384,20 +399,43 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700 whitespace-nowrap">Schedule</span>
                   </div>
 
-                  <div className="grid grid-cols-2 divide-x divide-slate-100 text-center">
-                    <div className="pr-2">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Start Date</p>
-                      <p className="text-xs font-semibold text-slate-800 font-mono">
-                        {batch["Start Date"] ? formatToMmmDdYyyy(batch["Start Date"]) : "—"}
-                      </p>
+                  {isEditing ? (
+                    <div className="grid grid-cols-2 gap-3 pt-1 text-left">
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Start Date</label>
+                        <input
+                          type="date"
+                          value={batch["Start Date"] ? toInputDateValue(batch["Start Date"]) : ''}
+                          onChange={(e) => onSaveBatch && onSaveBatch({ ...batch, "Start Date": e.target.value })}
+                          className="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded px-2 py-1.5 focus:border-teal-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">End Date</label>
+                        <input
+                          type="date"
+                          value={batch["End Date"] ? toInputDateValue(batch["End Date"]) : ''}
+                          onChange={(e) => onSaveBatch && onSaveBatch({ ...batch, "End Date": e.target.value })}
+                          className="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded px-2 py-1.5 focus:border-teal-500 outline-none"
+                        />
+                      </div>
                     </div>
-                    <div className="pl-2">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">End Date</p>
-                      <p className="text-xs font-semibold text-slate-800 font-mono">
-                        {batch["End Date"] ? formatToMmmDdYyyy(batch["End Date"]) : "—"}
-                      </p>
+                  ) : (
+                    <div className="grid grid-cols-2 divide-x divide-slate-100 text-center">
+                      <div className="pr-2">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Start Date</p>
+                        <p className="text-xs font-semibold text-slate-800 font-mono">
+                          {batch["Start Date"] ? formatToMmmDdYyyy(batch["Start Date"]) : "—"}
+                        </p>
+                      </div>
+                      <div className="pl-2">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">End Date</p>
+                        <p className="text-xs font-semibold text-slate-800 font-mono">
+                          {batch["End Date"] ? formatToMmmDdYyyy(batch["End Date"]) : "—"}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Instructors Card with Instructor label horizontally & vertically centered on top border */}
@@ -408,6 +446,22 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
                       {instructorsToRender.length > 1 ? "Instructors" : "Instructor"}
                     </span>
                   </div>
+
+                  {isEditing && (
+                    <div className="mb-3.5 pt-1">
+                      <EmployeeMultiSelect
+                        label="Select Instructors"
+                        selectedIds={instructorIds}
+                        onChange={(ids) => {
+                          if (onSaveBatch) {
+                            onSaveBatch({ ...batch, "Instractor": ids.join(',') });
+                          }
+                        }}
+                        employees={employees || []}
+                        placement="right-sidebar"
+                      />
+                    </div>
+                  )}
 
                   {instructorsToRender.length > 0 ? (
                     <div className="flex items-stretch justify-center gap-3 overflow-x-auto pb-1 pt-1 custom-scrollbar scroll-smooth">
@@ -468,9 +522,19 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
                     <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Info</span>
                   </div>
                   <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center gap-2">
                       <span className="text-xs text-slate-600 font-medium">Students Enrolled</span>
-                      <span className="text-xs font-bold text-teal-600 font-mono">{batch["Student"] || "—"}</span>
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          value={batch["Student"] || ""}
+                          onChange={(e) => onSaveBatch && onSaveBatch({ ...batch, "Student": e.target.value })}
+                          className="w-24 text-xs font-mono font-bold text-teal-600 bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:border-teal-500 outline-none text-right"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className="text-xs font-bold text-teal-600 font-mono">{batch["Student"] || "—"}</span>
+                      )}
                     </div>
                   </div>
                 </div>

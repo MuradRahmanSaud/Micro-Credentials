@@ -277,7 +277,7 @@ export default function App() {
 
       return {
         ...course,
-        "Status": getCourseStatusName(course),
+        "Status": getCourseStatusName(course, documentsData, workflowData),
         "Batches": courseBatchesCount.toString(),
         "Gross Revenue": `৳ ${grossRevenue.toLocaleString()}`,
         "Net Revenue": `৳ ${netRevenue.toLocaleString()}`,
@@ -285,7 +285,7 @@ export default function App() {
         "Profit %": `${profitMargin.toFixed(1)}%`
       };
     });
-  }, [courseData, mcBatchData]);
+  }, [courseData, mcBatchData, documentsData, workflowData]);
 
   const getDbOverridesHeaders = () => {
     try {

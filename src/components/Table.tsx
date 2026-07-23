@@ -834,7 +834,10 @@ export default function Table({
                               (() => {
                                 const status = String(row[header]);
                                 let badgeColors = "bg-gray-100 text-gray-600 border-gray-200";
-                                if (status === "Proposed") badgeColors = "bg-indigo-50 text-indigo-700 border-indigo-200/50";
+                                if (status === "100%" || status.includes("100%")) badgeColors = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
+                                else if (status === "0%" || status.includes("0%")) badgeColors = "bg-slate-100 text-slate-600 border-slate-200";
+                                else if (status.endsWith("%")) badgeColors = "bg-sky-50 text-sky-700 border-sky-200/50";
+                                else if (status === "Proposed") badgeColors = "bg-indigo-50 text-indigo-700 border-indigo-200/50";
                                 else if (status === "Developed") badgeColors = "bg-amber-50 text-amber-700 border-amber-200/50";
                                 else if (status === "Reviewed") badgeColors = "bg-sky-50 text-sky-700 border-sky-200/50";
                                 else if (status === "Approved") badgeColors = "bg-emerald-50 text-emerald-700 border-emerald-200/50";

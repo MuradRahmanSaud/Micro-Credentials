@@ -1173,92 +1173,31 @@ export default function MCCourseDetails({
                                                 </div>
                                               </td>
                                               <td className="px-2 py-1 font-mono text-[11px] text-gray-600 border-r border-gray-100 transition-all duration-150 text-center">
-                                                {inlineEditingBatchKey === batchKey ? (
-                                                  <input
-                                                    type="date"
-                                                    value={localBatch["Start Date"] ? toInputDateValue(localBatch["Start Date"]) : ''}
-                                                    onChange={(e) => {
-                                                      setEditedBatches(prev => ({
-                                                        ...prev,
-                                                        [batchKey]: { ...localBatch, "Start Date": e.target.value }
-                                                      }));
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="w-full min-w-[100px] text-[11px] bg-white border border-slate-200 rounded px-1.5 py-0.5 focus:border-teal-500 outline-none"
-                                                  />
-                                                ) : (
-                                                  localBatch["Start Date"] ? formatToMmmDdYyyy(localBatch["Start Date"]) : "—"
-                                                )}
+                                                {localBatch["Start Date"] ? formatToMmmDdYyyy(localBatch["Start Date"]) : "—"}
                                               </td>
                                               <td className="px-2 py-1 font-mono text-[11px] text-gray-600 border-r border-gray-100 transition-all duration-150 text-center">
-                                                {inlineEditingBatchKey === batchKey ? (
-                                                  <input
-                                                    type="date"
-                                                    value={localBatch["End Date"] ? toInputDateValue(localBatch["End Date"]) : ''}
-                                                    onChange={(e) => {
-                                                      setEditedBatches(prev => ({
-                                                        ...prev,
-                                                        [batchKey]: { ...localBatch, "End Date": e.target.value }
-                                                      }));
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="w-full min-w-[100px] text-[11px] bg-white border border-slate-200 rounded px-1.5 py-0.5 focus:border-teal-500 outline-none"
-                                                  />
-                                                ) : (
-                                                  localBatch["End Date"] ? formatToMmmDdYyyy(localBatch["End Date"]) : "—"
-                                                )}
+                                                {localBatch["End Date"] ? formatToMmmDdYyyy(localBatch["End Date"]) : "—"}
                                               </td>
                                               <td className="px-2 py-1 text-[11px] font-medium text-teal-600 transition-all duration-150 text-center border-r border-gray-100">
-                                                {inlineEditingBatchKey === batchKey ? (
-                                                  <input
-                                                    type="number"
-                                                    value={localBatch["Student"] || ''}
-                                                    onChange={(e) => {
-                                                      setEditedBatches(prev => ({
-                                                        ...prev,
-                                                        [batchKey]: { ...localBatch, "Student": e.target.value }
-                                                      }));
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="w-full min-w-[60px] text-[11px] bg-white border border-slate-200 rounded px-1.5 py-0.5 focus:border-teal-500 outline-none"
-                                                  />
-                                                ) : (
-                                                  localBatch["Student"] ? `${localBatch["Student"]}` : "—"
-                                                )}
+                                                {localBatch["Student"] ? `${localBatch["Student"]}` : "—"}
                                               </td>
                                               <td className="px-2 py-1 transition-all duration-150 text-center border-r border-gray-100">
-                                                {inlineEditingBatchKey === batchKey ? (
-                                                  <div onClick={(e) => e.stopPropagation()} className="text-left">
-                                                    <EmployeeMultiSelect
-                                                      selectedIds={instructorIds.map(String)}
-                                                      onChange={(ids) => {
-                                                        setEditedBatches(prev => ({
-                                                          ...prev,
-                                                          [batchKey]: { ...localBatch, "Instractor": ids.join(',') }
-                                                        }));
+                                                <div className="flex flex-wrap gap-1.5 items-center justify-center py-1">
+                                                  {instructorsToRender.map((emp: any, i: number) => (
+                                                    <img 
+                                                      key={i} 
+                                                      src={getPhotoUrl(emp)} 
+                                                      alt={emp['Employee Name']}
+                                                      title={`${emp['Employee Name']} - ${emp['Designation'] || ''}`}
+                                                      className="h-6 w-6 rounded-full object-cover bg-gray-50 shrink-0 border border-slate-200 shadow-xs hover:scale-110 transition-transform"
+                                                      onError={(e) => {
+                                                        const target = e.target as HTMLImageElement;
+                                                        target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp['Employee Name'] || 'User');
                                                       }}
-                                                      employees={employees || []}
-                                                      placement="bottom"
                                                     />
-                                                  </div>
-                                                ) : (
-                                                  <div className="flex flex-wrap gap-1.5 items-center justify-center py-1">
-                                                    {instructorsToRender.map((emp: any, i: number) => (
-                                                      <img 
-                                                        key={i} 
-                                                        src={getPhotoUrl(emp)} 
-                                                        alt={emp['Employee Name']}
-                                                        title={`${emp['Employee Name']} - ${emp['Designation'] || ''}`}
-                                                        className="h-6 w-6 rounded-full object-cover bg-gray-50 shrink-0 border border-slate-200 shadow-xs hover:scale-110 transition-transform"
-                                                        onError={(e) => {
-                                                          const target = e.target as HTMLImageElement;
-                                                          target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp['Employee Name'] || 'User');
-                                                        }}
-                                                      />
-                                                    ))}
-                                                    {instructorsToRender.length === 0 && <span className="text-[10px] text-gray-400 italic">None</span>}
-                                                  </div>
-                                                )}
+                                                  ))}
+                                                  {instructorsToRender.length === 0 && <span className="text-[10px] text-gray-400 italic">None</span>}
+                                                </div>
                                               </td>
                                               
                                             </tr>
@@ -1269,30 +1208,38 @@ export default function MCCourseDetails({
                                   </table>
                                 </div>
                                 <div className="hidden md:flex w-full md:w-[40%] bg-slate-50 relative border-l border-slate-200 flex-col">
-                                  <BatchDetailsView 
-                                    batch={courseBatches[selectedBatchIndex ?? 0]} 
-                                    employees={employees} 
-                                    isEditing={isEditing}
-                                    onSaveBatch={async (batchData) => {
-                                      if (isEditing) {
-                                        const batchKey = batchData["Batch Number"] || batchData["id"] || batchData["ID"];
-                                        setEditedBatches(prev => ({ ...prev, [batchKey]: batchData }));
-                                      } else if (extraFormProps?.onSaveBatch) {
-                                        await extraFormProps.onSaveBatch(batchData, batchData);
-                                      }
-                                    }}
-                                    workflowData={workflowData}
-                                    documents={[...documents, ...localNewDocs]}
-                                    onSaveDocument={async (docData, originalRow) => {
-                                      if (isEditing) {
-                                        const docKey = docData["Documents Title"] || docData["id"] || docData["ID"];
-                                        setEditedDocs(prev => ({ ...prev, [docKey]: docData }));
-                                        setLocalNewDocs(prev => [...prev, docData]);
-                                      } else if (extraFormProps?.onSaveDocument) {
-                                        await extraFormProps.onSaveDocument(docData, originalRow);
-                                      }
-                                    }}
-                                  />
+                                  {(() => {
+                                    const selectedBatchData = courseBatches[selectedBatchIndex ?? 0];
+                                    const selectedBatchKey = selectedBatchData ? (selectedBatchData["Batch Number"] || `batch-${selectedBatchIndex}`) : '';
+                                    const batchToPass = (selectedBatchKey && editedBatches[selectedBatchKey]) ? editedBatches[selectedBatchKey] : selectedBatchData;
+
+                                    return (
+                                      <BatchDetailsView 
+                                        batch={batchToPass} 
+                                        employees={employees} 
+                                        isEditing={isEditing}
+                                        onSaveBatch={async (batchData) => {
+                                          if (isEditing) {
+                                            const batchKey = batchData["Batch Number"] || batchData["id"] || batchData["ID"] || selectedBatchKey;
+                                            setEditedBatches(prev => ({ ...prev, [batchKey]: batchData }));
+                                          } else if (extraFormProps?.onSaveBatch) {
+                                            await extraFormProps.onSaveBatch(batchData, batchData);
+                                          }
+                                        }}
+                                        workflowData={workflowData}
+                                        documents={[...documents, ...localNewDocs]}
+                                        onSaveDocument={async (docData, originalRow) => {
+                                          if (isEditing) {
+                                            const docKey = docData["Documents Title"] || docData["id"] || docData["ID"];
+                                            setEditedDocs(prev => ({ ...prev, [docKey]: docData }));
+                                            setLocalNewDocs(prev => [...prev, docData]);
+                                          } else if (extraFormProps?.onSaveDocument) {
+                                            await extraFormProps.onSaveDocument(docData, originalRow);
+                                          }
+                                        }}
+                                      />
+                                    );
+                                  })()}
                                 </div>
                               </div>
                               {totalBatchPages > 1 && (
