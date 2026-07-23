@@ -258,7 +258,8 @@ export default function ActivityPanel({
   const [isEditing, setIsEditing] = useState(false);
 
   const getDocStatus = (doc: any) => {
-    const tag = String(doc["Tag"] || "");
+    if (!doc) return { text: "Review", color: "bg-teal-100 text-teal-800" };
+    const tag = String(doc["Tag"] || doc["Status"] || "");
     if (tag.includes("Revision Required") || tag.includes("Revision")) return { text: "Revision", color: "bg-amber-100 text-amber-800" };
     if (tag.includes("Verified") || tag.includes("Job Done") || tag.includes("Approved")) return { text: "Verified", color: "bg-green-100 text-green-800" };
     return { text: "Review", color: "bg-teal-100 text-teal-800" };
@@ -266,18 +267,30 @@ export default function ActivityPanel({
 
   const getAnyDocForActivity = (row: any) => {
     if (!documents) return null;
-    const empId = row["Employee ID"];
-    const code = row["Code"];
+    const empId = String(row["Employee ID"] || "GENERAL").toUpperCase();
+    const code = String(row["Course Code"] || row["Code"] || "N/A").toUpperCase();
     const batchNum = row["Batch Number"];
-    const batchInfo = row["Type"] === "Batch" && batchNum ? `Batch ${batchNum}` : "Course";
-    const stageName = row["_actualStageName"] || "";
+    const batchInfo = (row["Type"] === "Batch" && batchNum ? `Batch ${batchNum}` : "Course").toUpperCase();
+    const stageName = String(row["_actualStageName"] || "").toUpperCase();
     const deliverables = row["deliverablesList"] || [];
     
     for (const deliv of deliverables) {
-       const expectedTitle = `${code} - ${batchInfo} - EMP ${empId} - ${stageName} - ${deliv}`.toUpperCase();
+       const normDeliv = String(deliv).trim().toUpperCase();
        const doc = documents.find(d => {
           const title = String(d["Documents Title"] || d["Document Name"] || d["Title"] || "").toUpperCase();
-          return title === expectedTitle || (title.includes(code.toUpperCase()) && title.includes(empId.toUpperCase()) && title.includes(stageName.toUpperCase()) && title.includes(deliv.toUpperCase()));
+          const tag = String(d["Tag"] || "").toUpperCase();
+          const fullText = `${title} ${tag}`;
+
+          const matchesDeliv = title === normDeliv || title.includes(normDeliv) || tag.includes(normDeliv);
+          const matchesMetadata = 
+            (tag.includes(code) || title.includes(code)) &&
+            (tag.includes(empId) || title.includes(empId)) &&
+            (tag.includes(stageName) || title.includes(stageName));
+
+          if (matchesDeliv && matchesMetadata) return true;
+
+          const expectedTitle = `${code} - ${batchInfo} - EMP ${empId} - ${stageName} - ${normDeliv}`;
+          return title === expectedTitle || (fullText.includes(code) && fullText.includes(empId) && fullText.includes(stageName) && fullText.includes(normDeliv));
        });
        if (doc) return doc;
     }

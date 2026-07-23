@@ -225,10 +225,28 @@ export const ActivityDetailView: React.FC<ActivityDetailViewProps> = ({
 
   const getUploadedDocForDeliverable = (deliv: string) => {
     if (!documents) return null;
-    const expectedTitle = `${courseCode} - ${batchInfo} - EMP ${empId} - ${cleanStageName} - ${deliv}`.toUpperCase();
+    const normCode = String(courseCode || "").toUpperCase();
+    const normEmp = String(empId || "").toUpperCase();
+    const normStage = String(cleanStageName || "").toUpperCase();
+    const normDeliv = deliv.trim().toUpperCase();
+
     return documents.find(doc => {
       const title = String(doc["Documents Title"] || doc["Document Name"] || doc["Title"] || "").toUpperCase();
-      return title === expectedTitle || (title.includes(courseCode.toUpperCase()) && title.includes(empId.toUpperCase()) && title.includes(cleanStageName.toUpperCase()) && title.includes(deliv.toUpperCase()));
+      const tag = String(doc["Tag"] || "").toUpperCase();
+      const fullText = `${title} ${tag}`;
+
+      // Tag & Title lookup: deliverable name is in title or tag, and metadata is present
+      const matchesDeliv = title === normDeliv || title.includes(normDeliv) || tag.includes(normDeliv);
+      const matchesMetadata = 
+        (tag.includes(normCode) || title.includes(normCode)) &&
+        (tag.includes(normEmp) || title.includes(normEmp)) &&
+        (tag.includes(normStage) || title.includes(normStage));
+
+      if (matchesDeliv && matchesMetadata) return true;
+
+      // Fallback for legacy full title format
+      const expectedTitle = `${courseCode} - ${batchInfo} - EMP ${empId} - ${cleanStageName} - ${deliv}`.toUpperCase();
+      return title === expectedTitle || (fullText.includes(normCode) && fullText.includes(normEmp) && fullText.includes(normStage) && fullText.includes(normDeliv));
     });
   };
 
@@ -263,17 +281,34 @@ export const ActivityDetailView: React.FC<ActivityDetailViewProps> = ({
         }
       }
 
-      const generatedTitle = `${courseCode} - ${batchInfo} - Emp ${empId} - ${cleanStageName} - ${uploadingDeliv}`.toUpperCase();
+      // Requirement: Documents Title contains ONLY the deliverable name.
+      const deliverableTitle = uploadingDeliv.trim();
 
       const existingDoc = getUploadedDocForDeliverable(uploadingDeliv);
 
+      // Remaining information added as Tags
+      const tagMetadata = [
+        courseCode,
+        courseTitle,
+        batchInfo,
+        cleanStageName,
+        selectedActivity["_stageName"],
+        selectedActivity["workflowTitle"],
+        `Emp: ${empId}`,
+        empId,
+        uploadingDeliv
+      ].filter((item, idx, arr) => Boolean(item) && item !== "N/A" && arr.indexOf(item) === idx);
+
+      const generatedTags = tagMetadata.join(", ");
+
       const newDoc = {
         "Date": new Date().toISOString().split('T')[0],
-        "Documents Title": generatedTitle,
+        "Documents Title": deliverableTitle,
         "File Link": viewUrl,
-        "Tag": `${courseCode}, ${selectedActivity["workflowTitle"] || ""}, ${selectedActivity["_stageName"] || ""}, Emp: ${empId}`,
+        "Tag": generatedTags,
         "Course Code": courseCode,
-        "Course Name": courseTitle
+        "Course Name": courseTitle,
+        "Status": "Review"
       };
 
       if (onSaveDocument) {

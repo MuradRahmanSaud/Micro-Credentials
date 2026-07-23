@@ -7,17 +7,21 @@ import { motion, AnimatePresence } from "motion/react";
 import SearchableSingleSelect from "./SearchableSingleSelect";
 
 const getPhotoUrl = (emp: any) => {
-  if (!emp) return 'https://ui-avatars.com/api/?name=User';
-  const photoKey = Object.keys(emp).find(k => k.toLowerCase().includes("photo") || k.toLowerCase() === "image");
+  if (!emp) return 'https://ui-avatars.com/api/?name=User&background=0D9488&color=fff';
+  const photoKey = Object.keys(emp).find(k => {
+    const lk = k.toLowerCase().trim();
+    return lk.includes("photo") || lk.includes("image") || lk.includes("picture") || lk.includes("avatar") || lk === "img" || lk.includes("profile");
+  });
   const rawUrl = photoKey ? emp[photoKey] : '';
   if (!rawUrl || typeof rawUrl !== 'string' || rawUrl.trim() === '') {
-    return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp['Employee Name'] || 'User');
+    return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp['Employee Name'] || 'User') + '&background=0D9488&color=fff';
   }
-  const fileIdMatch = rawUrl.match(/[-\w]{25,}/);
-  if (fileIdMatch && rawUrl.includes('drive.google.com')) {
-    return `https://drive.google.com/thumbnail?id=${fileIdMatch[0]}&sz=w200`;
+  const cleanUrl = rawUrl.trim();
+  const fileIdMatch = cleanUrl.match(/[-\w]{25,}/);
+  if (fileIdMatch && (cleanUrl.includes('drive.google.com') || cleanUrl.includes('docs.google.com'))) {
+    return `https://drive.google.com/thumbnail?id=${fileIdMatch[0]}&sz=w400`;
   }
-  return rawUrl;
+  return cleanUrl;
 };
 
 export interface BatchDetailsViewProps {
@@ -62,16 +66,54 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
   }
 
   const instructorVal = batch["Instractor"] || batch["Instructor"];
-  const instructorIds = instructorVal ? resolveNamesOrIdsToIds(String(instructorVal), employees || []) : [];
-  const instructorEmployees = instructorIds.map(id => (employees || []).find(e => String(e['Employee ID'] || '').trim() === String(id).trim() || String(e['Employee Name'] || '').trim().toLowerCase() === String(id).trim().toLowerCase())).filter(Boolean);
   
   const getInstructorList = () => {
-    if (instructorEmployees.length > 0) return instructorEmployees;
     if (!instructorVal || String(instructorVal).trim() === "") return [];
-    return String(instructorVal).split(',').map(name => ({
-      'Employee Name': name.trim(),
-      Designation: "External Expert"
-    }));
+    
+    const empList = employees || [];
+    // First try resolveNamesOrIdsToIds
+    const instructorIds = resolveNamesOrIdsToIds(String(instructorVal), empList);
+    
+    const resolvedFromIds = instructorIds.map(rawId => {
+      const cleanId = String(rawId).split('|')[0].trim();
+      return empList.find(e => {
+        const empId = String(e['Employee ID'] || '').trim();
+        const empName = String(e['Employee Name'] || '').trim();
+        return (
+          empId === cleanId || 
+          empName.toLowerCase() === cleanId.toLowerCase()
+        );
+      });
+    }).filter(Boolean);
+
+    if (resolvedFromIds.length > 0) return resolvedFromIds;
+
+    // Fallback split by comma or semicolon
+    const items = String(instructorVal).split(/[,;]/).map(s => s.trim()).filter(Boolean);
+    return items.map(item => {
+      const parts = item.split('|').map(p => p.trim());
+      const firstPart = parts[0] || '';
+      const secondPart = parts[1] || '';
+
+      const found = empList.find(e => {
+        const empId = String(e['Employee ID'] || '').trim().toLowerCase();
+        const empName = String(e['Employee Name'] || '').trim().toLowerCase();
+        const fLower = firstPart.toLowerCase();
+        const sLower = secondPart.toLowerCase();
+
+        return (
+          (empId && (empId === fLower || empId === sLower)) ||
+          (empName && (empName === fLower || empName === sLower || (fLower.length > 2 && empName.includes(fLower))))
+        );
+      });
+
+      if (found) return found;
+
+      return {
+        'Employee Name': secondPart || firstPart,
+        Designation: "Instructor"
+      };
+    });
   };
   
   const instructorsToRender = getInstructorList();
@@ -172,6 +214,7 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
             placement="right-sidebar"
             jobTitle={jobTitle}
             batch={batch}
+            courseCode={batch?.['Course Code']}
             documents={documents}
             onSaveDocument={onSaveDocument}
             viewType="batch"
@@ -187,12 +230,44 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
 
   const renderDocuments = () => {
     const batchDocs = documents.filter(doc => {
-      const tag = String(doc["Tag"] || "");
+      const tag = String(doc["Tag"] || "").toUpperCase();
+      const title = String(doc["Documents Title"] || doc["Document Title"] || doc["Title"] || "").toUpperCase();
+      const docCourseCode = String(doc["Course Code"] || "").toUpperCase();
+      const docBatchNum = String(doc["Batch Number"] || doc["Batch"] || "").toUpperCase();
+
+      const batchNum = String(batch?.["Batch Number"] || "").toUpperCase();
+      const courseCode = String(batch?.["Course Code"] || "").toUpperCase();
+
+      // Check course match
+      const matchCourse = !courseCode || (docCourseCode === courseCode || tag.includes(courseCode) || title.includes(courseCode));
+      if (!matchCourse) return false;
+
+      // Check specific batch match
+      const matchBatch = !batchNum || (
+        docBatchNum === batchNum ||
+        tag.includes(`BATCH ${batchNum}`) ||
+        tag.includes(`BATCH-${batchNum}`) ||
+        tag.includes(`BATCH:${batchNum}`) ||
+        tag.includes(`BATCH ${batchNum},`) ||
+        tag.includes(`BATCH ${batchNum} `)
+      );
+
+      if (!matchBatch) return false;
+
       if (documentFilter) {
-        return tag.startsWith(documentFilter);
+        const normFilter = String(documentFilter).trim().toUpperCase();
+        const cleanFilter = normFilter
+          .replace(/^[^-]+-[^-]+-/, '')
+          .replace(/^[^-]+-/, '')
+          .replace(/-$/, '')
+          .replace(/^\d+\.\s*/, '');
+
+        const matchTag = tag.includes(normFilter) || tag.startsWith(normFilter) || (cleanFilter.length > 0 && tag.includes(cleanFilter));
+        const matchTitle = title.includes(normFilter) || (cleanFilter.length > 0 && title.includes(cleanFilter));
+        return matchTag || matchTitle;
       }
-      const batchNum = batch["Batch Number"] || "";
-      return tag === batchNum || tag.startsWith(batchNum + " - ");
+
+      return true;
     });
     
     return (
@@ -265,7 +340,12 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
               return (
                 <button
                   key={tab}
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => {
+                    setActiveTab(tab);
+                    if (tab === 'workflow') {
+                      setDocumentFilter(null);
+                    }
+                  }}
                   className={cn(
                     "relative px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer select-none focus:outline-none",
                     isActive ? "text-slate-800 font-extrabold" : "text-slate-500 hover:text-slate-700"
@@ -296,75 +376,102 @@ export default function BatchDetailsView({ batch, employees, isEditing, onSaveBa
             transition={{ duration: 0.15 }}
           >
             {activeTab === 'info' && (
-              <div className="space-y-4">
-                {/* Dates */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Calendar className="w-4 h-4 text-teal-600" />
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Schedule</span>
+              <div className="space-y-5 pt-2">
+                {/* Dates / Schedule Box with Schedule label horizontally & vertically centered on top border */}
+                <div className="relative border border-slate-200 bg-white rounded-lg p-3.5 pt-4">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-2.5 py-0.5 border border-slate-200 rounded-full flex items-center gap-1.5 text-slate-600 shadow-2xs z-10">
+                    <Calendar className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700 whitespace-nowrap">Schedule</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 p-3 bg-white border border-slate-200 rounded">
-                    <div>
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Start Date</p>
-                      <p className="text-xs font-medium text-slate-800">{batch["Start Date"] ? formatToMmmDdYyyy(batch["Start Date"]) : "—"}</p>
+
+                  <div className="grid grid-cols-2 divide-x divide-slate-100 text-center">
+                    <div className="pr-2">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Start Date</p>
+                      <p className="text-xs font-semibold text-slate-800 font-mono">
+                        {batch["Start Date"] ? formatToMmmDdYyyy(batch["Start Date"]) : "—"}
+                      </p>
                     </div>
-                    <div>
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">End Date</p>
-                      <p className="text-xs font-medium text-slate-800">{batch["End Date"] ? formatToMmmDdYyyy(batch["End Date"]) : "—"}</p>
+                    <div className="pl-2">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">End Date</p>
+                      <p className="text-xs font-semibold text-slate-800 font-mono">
+                        {batch["End Date"] ? formatToMmmDdYyyy(batch["End Date"]) : "—"}
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Instructors */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Users className="w-4 h-4 text-teal-600" />
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Instructors</span>
+                {/* Instructors Card with Instructor label horizontally & vertically centered on top border */}
+                <div className="relative border border-slate-200 bg-white rounded-lg p-3.5 pt-5">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-2.5 py-0.5 border border-slate-200 rounded-full flex items-center gap-1.5 text-slate-600 shadow-2xs z-10">
+                    <Users className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700 whitespace-nowrap">
+                      {instructorsToRender.length > 1 ? "Instructors" : "Instructor"}
+                    </span>
                   </div>
+
                   {instructorsToRender.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="flex items-stretch justify-center gap-3 overflow-x-auto pb-1 pt-1 custom-scrollbar scroll-smooth">
                       {instructorsToRender.map((emp: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2.5 bg-white p-2.5 rounded border border-slate-200">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                        <div 
+                          key={i} 
+                          className={`flex flex-col items-center justify-center bg-slate-50/70 p-3 rounded-lg border border-slate-200/80 hover:border-teal-300 transition-all text-center ${
+                            instructorsToRender.length === 1 ? 'w-full max-w-[180px] mx-auto' : 'min-w-[130px] max-w-[170px] shrink-0'
+                          }`}
+                        >
+                          {/* Top: Photo */}
+                          <div className="w-13 h-13 rounded-full bg-white overflow-hidden shrink-0 border-2 border-slate-200 shadow-2xs mb-2">
                             <img 
                               src={getPhotoUrl(emp)} 
-                              alt={emp['Employee Name']}
-                              className="w-full h-full object-cover bg-gray-50"
+                              alt={emp['Employee Name'] || 'Instructor'}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover"
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
-                                target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp['Employee Name'] || 'User');
+                                const currentSrc = target.src;
+                                const photoKey = Object.keys(emp).find(k => {
+                                  const lk = k.toLowerCase().trim();
+                                  return lk.includes("photo") || lk.includes("image") || lk.includes("picture") || lk.includes("avatar") || lk === "img" || lk.includes("profile");
+                                });
+                                const rawUrl = photoKey ? emp[photoKey] : '';
+                                const fileIdMatch = typeof rawUrl === 'string' ? rawUrl.match(/[-\w]{25,}/) : null;
+
+                                if (fileIdMatch && currentSrc.includes('drive.google.com')) {
+                                  target.src = `https://lh3.googleusercontent.com/d/${fileIdMatch[0]}=s400`;
+                                } else {
+                                  target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp['Employee Name'] || 'User') + '&background=0D9488&color=fff';
+                                }
                               }}
                             />
                           </div>
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <span className="text-xs font-bold text-slate-800 truncate leading-tight">
-                              {emp['Employee Name'] || 'Unknown'}
-                            </span>
-                            <span className="text-[10px] text-slate-500 truncate mt-0.5">
-                              {emp['Designation'] || 'Instructor'}
-                            </span>
-                          </div>
+                          {/* Middle: Name */}
+                          <span className="text-xs font-bold text-slate-800 leading-tight line-clamp-2">
+                            {emp['Employee Name'] || 'Unknown'}
+                          </span>
+                          {/* Bottom: Designation */}
+                          <span className="text-[10px] font-medium text-slate-500 mt-1 line-clamp-2">
+                            {emp['Designation'] || 'Instructor'}
+                          </span>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="p-3 bg-white border border-slate-200 rounded text-center">
-                      <span className="text-xs italic text-slate-400">No instructors assigned</span>
+                    <div className="text-center py-2">
+                      <span className="text-xs italic text-slate-400">No instructor assigned</span>
                     </div>
                   )}
                 </div>
 
                 {/* Additional Info */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Info className="w-4 h-4 text-teal-600" />
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Info</span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-teal-600" />
+                    <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Info</span>
                   </div>
-                  <div className="p-3 bg-white border border-slate-200 rounded">
-                     <div className="flex justify-between items-center">
-                       <span className="text-xs text-slate-600 font-medium">Students Enrolled</span>
-                       <span className="text-xs font-bold text-teal-600">{batch["Student"] || "—"}</span>
-                     </div>
+                  <div className="p-3 bg-white border border-slate-200 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-600 font-medium">Students Enrolled</span>
+                      <span className="text-xs font-bold text-teal-600 font-mono">{batch["Student"] || "—"}</span>
+                    </div>
                   </div>
                 </div>
               </div>

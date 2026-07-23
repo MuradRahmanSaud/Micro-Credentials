@@ -17,6 +17,24 @@ const TakaIcon = ({ className }: { className?: string }) => (
   </span>
 );
 
+const getPhotoUrl = (emp: any) => {
+  if (!emp) return 'https://ui-avatars.com/api/?name=User&background=0D9488&color=fff';
+  const photoKey = Object.keys(emp).find(k => {
+    const lk = k.toLowerCase().trim();
+    return lk.includes("photo") || lk.includes("image") || lk.includes("picture") || lk.includes("avatar") || lk === "img" || lk.includes("profile");
+  });
+  const rawUrl = photoKey ? emp[photoKey] : '';
+  if (!rawUrl || typeof rawUrl !== 'string' || rawUrl.trim() === '') {
+    return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp['Employee Name'] || 'User') + '&background=0D9488&color=fff';
+  }
+  const cleanUrl = rawUrl.trim();
+  const fileIdMatch = cleanUrl.match(/[-\w]{25,}/);
+  if (fileIdMatch && (cleanUrl.includes('drive.google.com') || cleanUrl.includes('docs.google.com'))) {
+    return `https://drive.google.com/thumbnail?id=${fileIdMatch[0]}&sz=w400`;
+  }
+  return cleanUrl;
+};
+
 interface MCCourseDetailsProps {
   isOpen: boolean;
   onClose: () => void;
@@ -1317,7 +1335,10 @@ export default function MCCourseDetails({
             <div className="bg-white border-b border-slate-100 shrink-0 p-2">
               <div className="flex h-9 p-1 gap-1 bg-slate-50 rounded-lg border border-slate-100">
                 <button 
-                  onClick={() => setActiveSidebarTab('workflow')}
+                  onClick={() => {
+                    setActiveSidebarTab('workflow');
+                    setDocumentFilter(null);
+                  }}
                   className={cn(
                     "flex-1 text-[11px] font-bold uppercase tracking-[0.15em] transition-all relative rounded-md",
                     activeSidebarTab === 'workflow' ? "text-white" : "text-slate-500 hover:text-slate-700"
@@ -1463,6 +1484,7 @@ export default function MCCourseDetails({
                           placement="bottom"
                           jobTitle={jobTitle}
                           batch={courseBatches[selectedBatchIndex ?? 0]}
+                          courseCode={data?.['Course Code']}
                           documents={[...documents, ...localNewDocs]}
                           onSaveDocument={async (docData, originalRow) => {
                             if (isEditing) {
@@ -1619,15 +1641,48 @@ export default function MCCourseDetails({
                         {(() => {
                           const courseDocs = [
                             ...(documents || []).filter(d => {
-                              const matchCourseCode = d['Course Code'] === data?.['Course Code'];
-                              const matchCourseName = d['Course Name'] === data?.['Course Title'];
-                              const matchTag = typeof d['Tag'] === 'string' && typeof data?.['Course Code'] === 'string' && d['Tag'].includes(data['Course Code']);
-                              const matchTagName = typeof d['Tag Name'] === 'string' && typeof data?.['Course Code'] === 'string' && d['Tag Name'].includes(data['Course Code']);
-                              
-                              let isRelevant = matchCourseCode || matchCourseName || matchTag || matchTagName;
+                              const cCode = String(data?.['Course Code'] || "").trim().toUpperCase();
+                              const cTitle = String(data?.['Course Title'] || "").trim().toUpperCase();
+
+                              const dCourseCode = String(d['Course Code'] || "").trim().toUpperCase();
+                              const dCourseName = String(d['Course Name'] || "").trim().toUpperCase();
+                              const tagStr = String(d['Tag'] || "").toUpperCase();
+                              const titleStr = String(d['Documents Title'] || d['Document Name'] || d['Title'] || "").toUpperCase();
+
+                              const matchCourseCode = Boolean(cCode && (dCourseCode === cCode || tagStr.includes(cCode) || titleStr.includes(cCode)));
+                              const matchCourseName = Boolean(cTitle && (dCourseName === cTitle || tagStr.includes(cTitle) || titleStr.includes(cTitle)));
+
+                              let isRelevant = matchCourseCode || matchCourseName;
+                              if (!cCode && !cTitle) isRelevant = true;
                               
                               if (documentFilter) {
-                                isRelevant = isRelevant && String(d['Tag'] || "").startsWith(documentFilter);
+                                const normFilter = String(documentFilter).trim().toUpperCase();
+                                const cleanFilter = normFilter
+                                  .replace(/^[^-]+-[^-]+-/, '')
+                                  .replace(/^[^-]+-/, '')
+                                  .replace(/-$/, '')
+                                  .replace(/^\d+\.\s*/, '');
+
+                                const tagStr = String(d['Tag'] || "").toUpperCase();
+                                const titleStr = String(d['Documents Title'] || d['Document Name'] || d['Title'] || "").toUpperCase();
+
+                                const matchFilterInTag = tagStr.includes(normFilter) || tagStr.startsWith(normFilter) || (cleanFilter.length > 0 && tagStr.includes(cleanFilter));
+                                const matchFilterInTitle = titleStr.includes(normFilter) || (cleanFilter.length > 0 && titleStr.includes(cleanFilter));
+
+                                const matchingStage = localStages.find(s => {
+                                  const sName = String(s["Workflow Stage"] || "").toUpperCase();
+                                  const sClean = sName.replace(/^\d+\.\s*/, '');
+                                  return (cleanFilter.length > 0 && (sName.includes(cleanFilter) || sClean.includes(cleanFilter) || normFilter.includes(sClean)));
+                                });
+
+                                let matchDeliverable = false;
+                                if (matchingStage) {
+                                  const delivsStr = String(matchingStage["Deliverables"] || "");
+                                  const delivs = delivsStr.split(/[\n|;,]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+                                  matchDeliverable = delivs.some(deliv => titleStr === deliv || titleStr.includes(deliv) || tagStr.includes(deliv));
+                                }
+
+                                isRelevant = isRelevant && (matchFilterInTag || matchFilterInTitle || matchDeliverable);
                               }
                               
                               return isRelevant;

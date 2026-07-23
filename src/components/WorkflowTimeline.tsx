@@ -35,6 +35,7 @@ interface WorkflowTimelineProps {
   placement?: 'bottom' | 'top' | 'right-sidebar';
   jobTitle?: string;
   batch?: any;
+  courseCode?: string;
   documents?: any[];
   onSaveDocument?: (formData: any, editingRow: any | null) => Promise<void>;
   viewType?: 'course' | 'batch';
@@ -50,6 +51,7 @@ export default function WorkflowTimeline({
   placement = "bottom",
   jobTitle = "",
   batch,
+  courseCode,
   documents = [],
   onSaveDocument,
   viewType = 'batch',
@@ -215,22 +217,56 @@ export default function WorkflowTimeline({
                   if (deliverablesList.length === 0) return null;
 
                   const stageName = stage["Workflow Stage"] || "";
+                  const cleanStageName = stageName.replace(/^\d+\.\s*/, '');
+
+                  const targetCourseCode = String(courseCode || batch?.["Course Code"] || "").trim().toUpperCase();
+                  const targetBatchNum = String(batch?.["Batch Number"] || batch?.["Batch"] || "").trim().toUpperCase();
+
                   const submittedCount = deliverablesList.filter(item => {
+                    const normItem = item.trim().toUpperCase();
                     return documents.some(doc => {
-                      if (!batch) return false;
-                      const tag = String(doc["Tag"] || "");
-                      const batchNum = batch["Batch Number"] || "";
-                      const courseCode = batch["Course Code"] || "";
-                      
-                      let matches = false;
-                      if (viewType === 'course') {
-                        const prefix = `${courseCode}-${stageName}-${item}`;
-                        matches = tag.startsWith(prefix);
-                      } else {
-                        const prefix = `${courseCode}-${batchNum}-${stageName}-${item}`;
-                        matches = tag.startsWith(prefix);
+                      const tag = String(doc["Tag"] || "").toUpperCase();
+                      const title = String(doc["Documents Title"] || doc["Document Title"] || doc["Title"] || "").toUpperCase();
+                      const docCourseCode = String(doc["Course Code"] || "").trim().toUpperCase();
+                      const docBatchNum = String(doc["Batch Number"] || doc["Batch"] || "").trim().toUpperCase();
+
+                      if (targetCourseCode) {
+                        const matchesCourse = 
+                          docCourseCode === targetCourseCode || 
+                          tag.includes(targetCourseCode) || 
+                          title.includes(targetCourseCode);
+                        if (!matchesCourse) return false;
                       }
-                      return matches;
+
+                      if (viewType === 'batch' && targetBatchNum) {
+                        const matchesBatch = 
+                          docBatchNum === targetBatchNum || 
+                          tag.includes(`BATCH ${targetBatchNum}`) || 
+                          tag.includes(`BATCH-${targetBatchNum}`) || 
+                          tag.includes(`BATCH:${targetBatchNum}`) || 
+                          tag.includes(`BATCH ${targetBatchNum},`) || 
+                          tag.includes(`BATCH ${targetBatchNum} `) ||
+                          title.includes(`BATCH ${targetBatchNum}`) ||
+                          title.includes(`BATCH-${targetBatchNum}`);
+                        if (!matchesBatch) return false;
+                      }
+
+                      if (targetCourseCode) {
+                        const cPrefix = `${targetCourseCode}-${stageName}-${item}`.toUpperCase();
+                        if (tag.startsWith(cPrefix)) return true;
+                        if (targetBatchNum) {
+                          const bPrefix = `${targetCourseCode}-${targetBatchNum}-${stageName}-${item}`.toUpperCase();
+                          if (tag.startsWith(bPrefix)) return true;
+                        }
+                      }
+
+                      const normStage = stageName.trim().toUpperCase();
+                      const normCleanStage = cleanStageName.trim().toUpperCase();
+
+                      const titleMatches = title === normItem || title.includes(normItem) || tag.includes(normItem);
+                      const stageMatches = !normStage || tag.includes(normStage) || tag.includes(normCleanStage) || title.includes(normStage) || title.includes(normCleanStage);
+
+                      return titleMatches && stageMatches;
                     });
                   }).length;
 
@@ -241,13 +277,10 @@ export default function WorkflowTimeline({
                     <button
                       type="button"
                       onClick={() => {
-                        if (onViewDocuments && batch) {
-                          const batchNum = batch["Batch Number"] || "";
-                          const courseCode = batch["Course Code"] || "";
-                          const prefix = viewType === 'course' 
-                            ? `${courseCode}-${stageName}-`
-                            : `${courseCode}-${batchNum}-${stageName}-`;
-                          onViewDocuments(prefix);
+                        if (onViewDocuments) {
+                          const cleanStage = (stage["Workflow Stage"] || "").replace(/^\d+\.\s*/, '');
+                          const fullStage = stage["Workflow Stage"] || "";
+                          onViewDocuments(cleanStage || fullStage);
                         }
                       }}
                       className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full cursor-pointer transition-colors ${allSubmitted ? 'bg-teal-100 text-teal-700 hover:bg-teal-200' : someSubmitted ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
